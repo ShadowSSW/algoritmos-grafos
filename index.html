@@ -968,14 +968,8 @@ function drawNode(x,y,label,sub,fill,stroke,sw,dist) {
   if(dist!==null) {
     const txt=dist===INF?'INF':String(dist);
     const bw=Math.max(28,txt.length*9+12), bh=18;
-    // Fondo con mejor contraste según el estado
-    if(dist===0) {
-      ctx.fillStyle='#2d9e6b'; // Verde para nodo fuente
-    } else if(dist===INF) {
-      ctx.fillStyle='#a89e90'; // Gris para infinito
-    } else {
-      ctx.fillStyle='#3b7dd8'; // Azul para distancias calculadas
-    }
+    // Fondo neutro para badges de distancia
+    ctx.fillStyle='#333'; // Gris oscuro neutro para todos los badges
     ctx.strokeStyle='#fff'; ctx.lineWidth=2;
     ctx.beginPath(); roundRect(ctx,x-bw/2,y+R-4,bw,bh,8); ctx.fill(); ctx.stroke();
     ctx.fillStyle='#fff';

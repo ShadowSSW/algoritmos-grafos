@@ -336,11 +336,23 @@
   .del-btn {
     width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
     border: 1.5px solid transparent; background: transparent;
-    color: var(--muted); cursor: pointer; font-size: 15px;
-    display: flex; align-items: center; justify-content: center;
+    color: var(--rose); cursor: pointer; font-size: 16px; font-weight: 600;
     transition: all .15s;
   }
-  .del-btn:hover { background: var(--rose-l); color: var(--rose); border-color: var(--rose); }
+  .del-btn:hover { background: var(--rose-l); border-color: var(--rose); }
+  .dir-btn {
+    width: 32px; height: 26px; border-radius: 6px; flex-shrink: 0;
+    border: 1.5px solid var(--sand); background: #fff;
+    color: var(--ink); cursor: pointer; font-size: 14px; font-weight: 600;
+    transition: all .15s; display: flex; align-items: center; justify-content: center;
+  }
+  .dir-btn:hover { border-color: var(--blue-m); background: var(--blue-l); }
+  .dir-btn.directed { 
+    background: var(--blue-l); border-color: var(--blue-m); color: var(--blue);
+  }
+  .dir-btn.bidirectional { 
+    background: var(--cream2); border-color: var(--sand); color: var(--muted);
+  }
   .add-edge-btn {
     padding: 8px 16px; border-radius: 100px;
     border: 1.5px dashed var(--sand); background: transparent;
@@ -684,9 +696,9 @@ let currentGraphName = { dijkstra: 'Red de Routers', kruskal: 'Fibra Óptica —
 
 // Clone from presets as initial data
 let DN = PRESETS.dijkstra[0].nodes.map((n,i)=>({id:i,...n}));
-let DE = PRESETS.dijkstra[0].edges.map(e=>({...e}));
+let DE = PRESETS.dijkstra[0].edges.map(e=>({...e, dir: e.dir || false}));
 let KN = PRESETS.kruskal[0].nodes.map((n,i)=>({id:i,...n}));
-let KE_RAW = PRESETS.kruskal[0].edges.map(e=>({...e}));
+let KE_RAW = PRESETS.kruskal[0].edges.map(e=>({...e, dir: false})); // Kruskal siempre no-dirigido
 let KE = [...KE_RAW].sort((a,b)=>a.w-b.w);
 
 /* ══════════════════════════════════════════════
@@ -755,7 +767,16 @@ function stepDijkstra() {
   let updated=false;
   for(const e of DE) {
     let v=-1;
-    if(e.u===u) v=e.v; else if(e.v===u) v=e.u;
+    // Lógica para aristas dirigidas
+    if(e.dir) {
+      // Arista dirigida: solo permite flujo de u hacia v
+      if(e.u === u) {
+        v = e.v;
+      }
+    } else {
+      // Arista no dirigida: permite flujo en ambos sentidos
+      if(e.u===u) v=e.v; else if(e.v===u) v=e.u;
+    }
     if(v===-1||DS.visited[v]) continue;
     const nd=DS.dist[u]+e.w;
     if(nd<DS.dist[v]) {
@@ -860,7 +881,7 @@ function drawDijkstra() {
   for(const e of DE) {
     const p=pos(DN[e.u]), q=pos(DN[e.v]);
     const inPath=s&&s.pathEdges.some(pe=>(pe.u===e.u&&pe.v===e.v)||(pe.u===e.v&&pe.v===e.u));
-    drawEdge(p,q,inPath?C.pathEdge:C.edgeNormal,inPath?2.5:.9,false,e.w);
+    drawEdge(p, q, inPath?C.pathEdge:C.edgeNormal, inPath?2.5:.9, inPath, e.w, e.dir === true);
   }
   for(const n of DN) {
     const {x,y}=pos(n);
@@ -898,14 +919,14 @@ function drawDijkstra() {
 function drawKruskal() {
   const s=KS;
   for(const e of KE_RAW) {
-    if(!s){drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeNormal,.9,false,e.w);continue;}
+    if(!s){drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeNormal,.9,false,e.w,false);continue;}
     const inMST=s.mst.some(m=>m.u===e.u&&m.v===e.v);
     const inRej=s.rejected.some(r=>r.u===e.u&&r.v===e.v);
     const isCand=!KS.done&&s.idx>0&&KE[s.idx-1]&&KE[s.idx-1].u===e.u&&KE[s.idx-1].v===e.v;
-    if(inRej) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeRej,1.2,true,e.w);
-    else if(inMST) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeMST,2.5,false,e.w);
-    else if(isCand) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeCand,2,false,e.w);
-    else drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeNormal,.9,false,e.w);
+    if(inRej) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeRej,1.2,true,e.w,false);
+    else if(inMST) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeMST,2.5,false,e.w,false);
+    else if(isCand) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeCand,2,false,e.w,false);
+    else drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeNormal,.9,false,e.w,false);
   }
   for(const n of KN) {
     const {x,y}=pos(n);
@@ -913,44 +934,70 @@ function drawKruskal() {
   }
 }
 
-function drawEdge(p,q,color,lw,dashed,weight) {
-  ctx.save();
-  ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y);
-  ctx.strokeStyle=color; ctx.lineWidth=lw;
-  if(dashed) ctx.setLineDash([8,6]); else ctx.setLineDash([]);
-  
-  // Agregar efecto de sombra para aristas importantes
-  if(lw > 2) {
-    ctx.shadowColor='rgba(44,37,32,.15)'; 
-    ctx.shadowBlur=4; 
-    ctx.shadowOffsetY=2;
+function drawEdge(u, v, color, width, isPath, weight, isDirected) {
+  if (!u || !v) return;
+
+  const dx = v.x - u.x;
+  const dy = v.y - u.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  if (distance < 1) return; // Evita división por cero
+
+  const angle = Math.atan2(dy, dx);
+  const r = 25; // Radio de tus nodos
+
+  // Puntos exactos en el borde de los círculos
+  const startX = u.x + Math.cos(angle) * r;
+  const startY = u.y + Math.sin(angle) * r;
+  const endX = v.x - Math.cos(angle) * r;
+  const endY = v.y - Math.sin(angle) * r;
+
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.moveTo(startX, startY);
+  ctx.lineTo(endX, endY);
+  ctx.stroke();
+
+  // Dibujar flecha si es dirigido
+  if (isDirected && distance > r * 2) {
+    ctx.save();
+    ctx.translate(endX, endY);
+    ctx.rotate(angle);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-10, -5);
+    ctx.lineTo(-10, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
+
+  // Dibujar el peso (Label)
+  const midX = (u.x + v.x) / 2;
+  const midY = (u.y + v.y) / 2;
+  drawWeight(midX, midY, weight);
+}
+
+function drawWeight(x, y, weight) {
+  const txt = String(weight);
+  const bw = Math.max(28, txt.length * 9 + 12), bh = 18;
   
-  ctx.stroke(); ctx.restore();
+  // Fondo neutro para badges de distancia
+  ctx.fillStyle = 'rgba(255,255,255,.95)';
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  roundRect(ctx, x - bw/2, y - bh/2 - 1, bw, bh, 6);
+  ctx.fill();
+  ctx.stroke();
   
-  // Mejorar visualización del peso
-  const mx=(p.x+q.x)/2, my=(p.y+q.y)/2;
-  const bx=28, by=18;
-  
-  // Fondo con mejor contraste
-  ctx.fillStyle='rgba(255,255,255,.95)';
-  ctx.strokeStyle=color; ctx.lineWidth=1.5;
-  ctx.beginPath(); roundRect(ctx,mx-bx/2,my-by/2-1,bx,by,6); ctx.fill(); ctx.stroke();
-  
-  // Color del texto según el estado de la arista
-  if(color === C.edgeMST) {
-    ctx.fillStyle='#2d9e6b'; // Verde para MST
-  } else if(color === C.edgeRej) {
-    ctx.fillStyle='#d45a4a'; // Rojo para rechazadas
-  } else if(color === C.edgeCand) {
-    ctx.fillStyle='#d4891a'; // Ámbar para candidatas
-  } else {
-    ctx.fillStyle=C.weight; // Color normal
-  }
-  
-  ctx.font=`600 12px 'DM Mono',monospace`;
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(weight,mx,my);
+  // Texto del peso
+  ctx.fillStyle = '#333';
+  ctx.font = `600 12px 'DM Mono', monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(txt, x, y);
 }
 
 function drawNode(x,y,label,sub,fill,stroke,sw,dist) {
@@ -1215,14 +1262,14 @@ function openEditor() {
   // Populate editor with current data
   if(algo==='dijkstra') {
     editorNodes = DN.map(n=>({label:n.label, sub:n.sub||''}));
-    editorEdges = DE.map(e=>({u:e.u, v:e.v, w:e.w}));
+    editorEdges = DE.map(e=>({u:e.u, v:e.v, w:e.w, dir:e.dir||false}));
     document.getElementById('modal-title').textContent = 'Editar grafo — Dijkstra';
     document.getElementById('modal-subtitle').textContent = 'Modifica nodos y aristas del algoritmo de camino mínimo.';
     document.getElementById('unit-input').value = currentUnit.dijkstra;
     document.getElementById('graph-name-input').value = currentGraphName.dijkstra;
   } else {
     editorNodes = KN.map(n=>({label:n.label, sub:n.sub||''}));
-    editorEdges = KE_RAW.map(e=>({u:e.u, v:e.v, w:e.w}));
+    editorEdges = KE_RAW.map(e=>({u:e.u, v:e.v, w:e.w, dir:false})); // Kruskal siempre no-dirigido
     document.getElementById('modal-title').textContent = 'Editar grafo — Kruskal';
     document.getElementById('modal-subtitle').textContent = 'Modifica nodos y aristas del árbol de expansión mínima.';
     document.getElementById('unit-input').value = currentUnit.kruskal;
@@ -1252,7 +1299,7 @@ function renderPresets() {
 function loadPreset(idx) {
   const p = PRESETS[algo][idx];
   editorNodes = p.nodes.map(n=>({label:n.label, sub:n.sub||''}));
-  editorEdges = p.edges.map(e=>({u:e.u, v:e.v, w:e.w}));
+  editorEdges = p.edges.map(e=>({u:e.u, v:e.v, w:e.w, dir:e.dir||false}));
   document.getElementById('unit-input').value = p.unit || (algo==='kruskal'?'km':'ms');
   document.getElementById('graph-name-input').value = p.graphName || p.name;
   renderEditorNodes();
@@ -1283,9 +1330,12 @@ function renderEditorEdges() {
   editorEdges.forEach((e,i)=>{
     const div = document.createElement('div');
     div.className = 'edge-row';
+    const isDir = algo === 'dijkstra' && e.dir;
+    const arrowIcon = isDir ? '→' : '↔';
+    const arrowClass = isDir ? 'directed' : 'bidirectional';
     div.innerHTML = `
       ${nodeSelect('e-u-'+i, e.u, i, 'u')}
-      <span class="edge-arrow">—</span>
+      <button class="dir-btn ${arrowClass}" onclick="toggleDirection(${i})" title="Click para cambiar dirección">${arrowIcon}</button>
       ${nodeSelect('e-v-'+i, e.v, i, 'v')}
       <span class="edge-arrow" style="font-size:11px;color:var(--muted)">peso</span>
       <input type="number" id="e-w-${i}" min="1" max="9999" value="${e.w}"
@@ -1294,6 +1344,13 @@ function renderEditorEdges() {
     `;
     container.appendChild(div);
   });
+}
+
+function toggleDirection(idx) {
+  if(algo === 'dijkstra') {
+    editorEdges[idx].dir = !editorEdges[idx].dir;
+    renderEditorEdges();
+  }
 }
 
 function nodeSelect(id, selected, edgeIdx, field) {
@@ -1355,7 +1412,7 @@ function applyEditor() {
   if(algo==='dijkstra') {
     DN = editorNodes.map((n,i)=>({id:i, label:n.label.trim(), sub:n.sub.trim(), x:0, y:0}));
     assignPositions(DN);
-    DE = editorEdges.map(e=>({u:e.u, v:e.v, w:+e.w}));
+    DE = editorEdges.map(e=>({u:e.u, v:e.v, w:+e.w, dir:e.dir||false}));
     currentUnit.dijkstra = unit;
     currentGraphName.dijkstra = graphName;
     DS = null;
@@ -1366,7 +1423,7 @@ function applyEditor() {
   } else {
     KN = editorNodes.map((n,i)=>({id:i, label:n.label.trim(), sub:n.sub.trim(), x:0, y:0}));
     assignPositions(KN);
-    KE_RAW = editorEdges.map(e=>({u:e.u, v:e.v, w:+e.w}));
+    KE_RAW = editorEdges.map(e=>({u:e.u, v:e.v, w:+e.w, dir:false})); // Kruskal siempre no-dirigido
     KE = [...KE_RAW].sort((a,b)=>a.w-b.w);
     currentUnit.kruskal = unit;
     currentGraphName.kruskal = graphName;

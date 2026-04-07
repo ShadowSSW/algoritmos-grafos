@@ -152,6 +152,7 @@
   .dist-table tr { transition: background .15s; }
   .dist-table tr.visited td { background: var(--green-l); }
   .dist-table tr.current td { background: var(--amber-l); font-weight: 500; }
+  .dist-table tr.dist-updated td { animation: distFlash .45s ease; }
   .node-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; }
   .node-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
 
@@ -231,6 +232,7 @@
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
   @keyframes highlight { 0%{transform:scale(1)} 50%{transform:scale(1.1)} 100%{transform:scale(1)} }
   @keyframes slideIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+  @keyframes distFlash { 0%{background:var(--blue-l)} 100%{background:transparent} }
   .running .status-dot { animation: pulse .7s ease-in-out infinite; background: var(--amber); }
   
   /* Enhanced visual feedback */
@@ -726,6 +728,7 @@ function resetDState(src=0, dest=DN.length-1) {
     pathEdges: [],
   };
   DS.dist[src] = 0;
+  prevDistSnapshot = [...DS.dist];
 }
 
 function resetKState() {
@@ -839,6 +842,10 @@ function stepKruskal() {
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 let W, H, dpr;
+const NODE_R = 30;
+let draggingNodeId = -1;
+let isDraggingNode = false;
+let prevDistSnapshot = [];
 
 function resize() {
   dpr = window.devicePixelRatio||1;
@@ -866,6 +873,67 @@ function draw() {
   ctx.clearRect(0,0,W,H);
   if(algo==='dijkstra') drawDijkstra();
   else drawKruskal();
+}
+
+function getActiveNodes() {
+  return algo==='dijkstra' ? DN : KN;
+}
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function getCanvasPoint(evt) {
+  const rect = cv.getBoundingClientRect();
+  return {
+    x: evt.clientX - rect.left,
+    y: evt.clientY - rect.top
+  };
+}
+
+function hitTestNode(x, y) {
+  const nodes = getActiveNodes();
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const p = pos(nodes[i]);
+    const dx = x - p.x;
+    const dy = y - p.y;
+    if ((dx * dx + dy * dy) <= NODE_R * NODE_R) return nodes[i].id;
+  }
+  return -1;
+}
+
+function startNodeDrag(evt) {
+  const p = getCanvasPoint(evt);
+  const id = hitTestNode(p.x, p.y);
+  if (id === -1) return;
+  isDraggingNode = true;
+  draggingNodeId = id;
+  cv.style.cursor = 'grabbing';
+  evt.preventDefault();
+}
+
+function moveNodeDrag(evt) {
+  const p = getCanvasPoint(evt);
+  if (!isDraggingNode || draggingNodeId === -1) {
+    const hoverId = hitTestNode(p.x, p.y);
+    cv.style.cursor = hoverId !== -1 ? 'grab' : 'default';
+    return;
+  }
+  const nodes = getActiveNodes();
+  const node = nodes.find(n => n.id === draggingNodeId);
+  if (!node) return;
+  const margin = NODE_R + 8;
+  const nx = clamp(p.x, margin, W - margin) / W;
+  const ny = clamp(p.y, margin, H - margin) / H;
+  node.x = nx;
+  node.y = ny;
+  draw();
+}
+
+function endNodeDrag() {
+  isDraggingNode = false;
+  draggingNodeId = -1;
+  cv.style.cursor = 'default';
 }
 
 function layoutNodes(nodes) {
@@ -899,9 +967,10 @@ function drawDijkstra() {
   for(const n of DN) {
     const {x,y}=pos(n);
     let fill=C.nodeDefault, stroke=C.nodeStroke, sw=1.5;
+    let pulse = false;
     if(s){
       if(n.id===DS.dest){fill=C.nodeDest;stroke=C.nodeDestStroke;}
-      else if(n.id===s.current){fill=C.nodeCurrent;stroke=C.nodeCurrentStroke;sw=2.5;}
+      else if(n.id===s.current){fill=C.nodeCurrent;stroke=C.nodeCurrentStroke;sw=2.8;pulse=true;}
       else if(s.visited[n.id]){fill=C.nodeVisited;stroke=C.nodeVisitedStroke;sw=2;}
     }
     // Determinar etiqueta dinámica para el nodo (reemplazar etiquetas estáticas incorrectas)
@@ -925,7 +994,7 @@ function drawDijkstra() {
         dynamicSub = n.sub;
       }
     }
-    drawNode(x,y,n.label,dynamicSub,fill,stroke,sw,s?DS.dist[n.id]:null);
+    drawNode(x,y,n.label,dynamicSub,fill,stroke,sw,s?DS.dist[n.id]:null,pulse);
   }
 }
 
@@ -954,7 +1023,7 @@ function drawKruskal() {
   }
   for(const n of KN) {
     const {x,y}=pos(n);
-    drawNode(x,y,n.label,n.sub,C.nodeDefault,C.nodeStroke,1.5,null);
+    drawNode(x,y,n.label,n.sub,C.nodeDefault,C.nodeStroke,1.5,null,false);
   }
 }
 
@@ -1101,13 +1170,15 @@ function drawWeight(x, y, weight, alpha = 1) {
   ctx.restore();
 }
 
-function drawNode(x,y,label,sub,fill,stroke,sw,dist) {
-  const R=30;
+function drawNode(x,y,label,sub,fill,stroke,sw,dist,pulse=false) {
+  const R=NODE_R;
+  const scale = pulse ? 1 + Math.sin(Date.now() / 150) * 0.04 : 1;
+  const RR = R * scale;
   ctx.save();
   ctx.shadowColor='rgba(44,37,32,.08)'; ctx.shadowBlur=12; ctx.shadowOffsetY=3;
-  ctx.beginPath(); ctx.arc(x,y,R,0,Math.PI*2);
+  ctx.beginPath(); ctx.arc(x,y,RR,0,Math.PI*2);
   ctx.fillStyle=fill; ctx.fill(); ctx.restore();
-  ctx.beginPath(); ctx.arc(x,y,R,0,Math.PI*2);
+  ctx.beginPath(); ctx.arc(x,y,RR,0,Math.PI*2);
   ctx.strokeStyle=stroke; ctx.lineWidth=sw; ctx.stroke();
   ctx.fillStyle=C.label;
   ctx.font=`600 13px 'DM Sans',sans-serif`;
@@ -1119,14 +1190,14 @@ function drawNode(x,y,label,sub,fill,stroke,sw,dist) {
     // Fondo neutro para badges de distancia
     ctx.fillStyle='#333'; // Gris oscuro neutro para todos los badges
     ctx.strokeStyle='#fff'; ctx.lineWidth=2;
-    ctx.beginPath(); roundRect(ctx,x-bw/2,y+R-4,bw,bh,8); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); roundRect(ctx,x-bw/2,y+RR-4,bw,bh,8); ctx.fill(); ctx.stroke();
     ctx.fillStyle='#fff';
     ctx.font=`600 11px 'DM Mono',monospace`;
-    ctx.textBaseline='middle'; ctx.fillText(txt,x,y+R+5);
+    ctx.textBaseline='middle'; ctx.fillText(txt,x,y+RR+5);
   }
   if(sub) {
     ctx.fillStyle=C.sub; ctx.font=`400 10px 'DM Sans',sans-serif`;
-    ctx.textBaseline='top'; ctx.fillText(sub,x,y+R+(dist!==null?24:8));
+    ctx.textBaseline='top'; ctx.fillText(sub,x,y+RR+(dist!==null?24:8));
   }
 }
 
@@ -1161,11 +1232,13 @@ function clearLog() {
 function updateDistTable() {
   const tbody=document.getElementById('dist-tbody');
   tbody.innerHTML='';
+  const changed = [];
   for(const n of DN) {
     const tr=document.createElement('tr');
     const visited=DS.visited[n.id], current=DS.current===n.id;
     tr.className=current?'current':visited?'visited':'';
     const d=DS.dist[n.id];
+    if(prevDistSnapshot[n.id] !== undefined && prevDistSnapshot[n.id] !== d) changed.push(tr);
     const via=DS.prev[n.id]!==-1?` · ${DN[DS.prev[n.id]].label}`:'';
     // Mostrar descripción dinámica según el rol del nodo (limpiando etiquetas estáticas incorrectas)
     let desc = '';
@@ -1184,6 +1257,8 @@ function updateDistTable() {
     tr.innerHTML=`<td><span class="node-chip">${n.label}${desc?` <span style="color:var(--muted);font-weight:400;font-size:11px">${desc}</span>`:''}</span></td><td>${d===INF?'INF':d}${via}</td>`;
     tbody.appendChild(tr);
   }
+  for (const tr of changed) tr.classList.add('dist-updated');
+  prevDistSnapshot = DS ? [...DS.dist] : [];
 }
 function updateKruskalPanel() {
   const unit=currentUnit.kruskal;
@@ -1641,6 +1716,10 @@ window.addEventListener('load', ()=>{
   setStatus('', 'Selecciona el nodo fuente y presiona <strong>Siguiente paso</strong>');
   draw();
 });
+cv.addEventListener('mousedown', startNodeDrag);
+cv.addEventListener('mousemove', moveNodeDrag);
+window.addEventListener('mouseup', endNodeDrag);
+cv.addEventListener('mouseleave', endNodeDrag);
 window.addEventListener('resize', ()=>{
   ctx.setTransform(1,0,0,1,0,0);
   resize();

@@ -870,15 +870,25 @@ function drawDijkstra() {
       else if(n.id===s.current){fill=C.nodeCurrent;stroke=C.nodeCurrentStroke;sw=2.5;}
       else if(s.visited[n.id]){fill=C.nodeVisited;stroke=C.nodeVisitedStroke;sw=2;}
     }
-    // Determinar etiqueta dinámica para el nodo
-    let dynamicSub = n.sub || '';
+    // Determinar etiqueta dinámica para el nodo (reemplazar etiquetas estáticas incorrectas)
+    let dynamicSub = '';
     if(s && DS.src !== undefined && DS.dest !== undefined) {
       if(n.id === DS.src && n.id === DS.dest) {
-        dynamicSub = dynamicSub ? `${dynamicSub} (origen/destino)` : '(origen/destino)';
+        dynamicSub = '(origen/destino)';
       } else if(n.id === DS.src) {
-        dynamicSub = dynamicSub ? `${dynamicSub} (origen)` : '(origen)';
+        dynamicSub = '(origen)';
       } else if(n.id === DS.dest) {
-        dynamicSub = dynamicSub ? `${dynamicSub} (destino)` : '(destino)';
+        dynamicSub = '(destino)';
+      } else {
+        // Para nodos que no son origen ni destino, usar etiqueta original solo si no es "Origen" o "Destino"
+        if(n.sub && n.sub !== 'Origen' && n.sub !== 'Destino') {
+          dynamicSub = n.sub;
+        }
+      }
+    } else {
+      // Si no hay estado activo, usar etiqueta original solo si no es "Origen" o "Destino"
+      if(n.sub && n.sub !== 'Origen' && n.sub !== 'Destino') {
+        dynamicSub = n.sub;
       }
     }
     drawNode(x,y,n.label,dynamicSub,fill,stroke,sw,s?DS.dist[n.id]:null);
@@ -1015,14 +1025,19 @@ function updateDistTable() {
     tr.className=current?'current':visited?'visited':'';
     const d=DS.dist[n.id];
     const via=DS.prev[n.id]!==-1?` · ${DN[DS.prev[n.id]].label}`:'';
-    // Mostrar descripción dinámica según el rol del nodo
-    let desc = n.sub || '';
+    // Mostrar descripción dinámica según el rol del nodo (limpiando etiquetas estáticas incorrectas)
+    let desc = '';
     if(n.id === DS.src && n.id === DS.dest) {
-      desc = desc ? `${desc} (origen/destino)` : '(origen/destino)';
+      desc = '(origen/destino)';
     } else if(n.id === DS.src) {
-      desc = desc ? `${desc} (origen)` : '(origen)';
+      desc = '(origen)';
     } else if(n.id === DS.dest) {
-      desc = desc ? `${desc} (destino)` : '(destino)';
+      desc = '(destino)';
+    } else {
+      // Para nodos que no son origen ni destino, usar etiqueta original solo si no es "Origen" o "Destino"
+      if(n.sub && n.sub !== 'Origen' && n.sub !== 'Destino') {
+        desc = n.sub;
+      }
     }
     tr.innerHTML=`<td><span class="node-chip">${n.label}${desc?` <span style="color:var(--muted);font-weight:400;font-size:11px">${desc}</span>`:''}</span></td><td>${d===INF?'INF':d}${via}</td>`;
     tbody.appendChild(tr);
@@ -1039,18 +1054,27 @@ function updateKruskalPanel() {
 function initDistTable() {
   const tbody=document.getElementById('dist-tbody');
   if(!DS) {
-    tbody.innerHTML=DN.map(n=>`<tr><td>${n.label}${n.sub?` <span style="color:var(--muted);font-size:11px">${n.sub}</span>`:''}</td><td>---</td></tr>`).join('');
+    tbody.innerHTML=DN.map(n=>{
+      // Limpiar etiquetas estáticas "Origen" y "Destino" cuando no hay estado activo
+      const cleanSub = (n.sub && n.sub !== 'Origen' && n.sub !== 'Destino') ? n.sub : '';
+      return `<tr><td>${n.label}${cleanSub?` <span style="color:var(--muted);font-size:11px">${cleanSub}</span>`:''}</td><td>---</td></tr>`;
+    }).join('');
     return;
   }
   tbody.innerHTML=DN.map(n=>{
-    let desc = n.sub || '';
+    let desc = '';
     if(DS.src !== undefined && DS.dest !== undefined) {
       if(n.id === DS.src && n.id === DS.dest) {
-        desc = desc ? `${desc} (origen/destino)` : '(origen/destino)';
+        desc = '(origen/destino)';
       } else if(n.id === DS.src) {
-        desc = desc ? `${desc} (origen)` : '(origen)';
+        desc = '(origen)';
       } else if(n.id === DS.dest) {
-        desc = desc ? `${desc} (destino)` : '(destino)';
+        desc = '(destino)';
+      } else {
+        // Para nodos que no son origen ni destino, usar etiqueta original solo si no es "Origen" o "Destino"
+        if(n.sub && n.sub !== 'Origen' && n.sub !== 'Destino') {
+          desc = n.sub;
+        }
       }
     }
     const d = n.id === DS.src ? 0 : 'INF';

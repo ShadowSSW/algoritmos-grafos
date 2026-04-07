@@ -283,6 +283,7 @@
     flex-shrink: 0; transition: all .15s;
   }
   .close-btn:hover { background: var(--rose-l); border-color: var(--rose); color: var(--rose); }
+  .modal-header-actions { display:flex; align-items:center; gap:8px; }
 
   .modal-body { padding: 22px 26px; display: flex; flex-direction: column; gap: 24px; }
 
@@ -333,13 +334,14 @@
   }
   .edge-row input:focus, .edge-row select:focus { border-color: var(--blue-m); }
   .edge-row input[type=number] { text-align: right; }
-  .del-btn {
-    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
-    border: 1.5px solid transparent; background: transparent;
-    color: var(--rose); cursor: pointer; font-size: 16px; font-weight: 600;
+  .row-del-btn {
+    width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+    border: 1px solid #fecaca; background: #fee2e2;
+    color: #ef4444; cursor: pointer; font-size: 14px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
     transition: all .15s;
   }
-  .del-btn:hover { background: var(--rose-l); border-color: var(--rose); }
+  .row-del-btn:hover { background: #fecaca; border-color: #fca5a5; }
   .dir-btn {
     width: 32px; height: 26px; border-radius: 6px; flex-shrink: 0;
     border: 1.5px solid var(--sand); background: #fff;
@@ -515,7 +517,10 @@
         <div class="modal-title" id="modal-title">Editar grafo — Dijkstra</div>
         <div class="modal-subtitle" id="modal-subtitle">Modifica los nodos y aristas, luego aplica los cambios.</div>
       </div>
-      <button class="close-btn" onclick="closeEditor()">✕</button>
+      <div class="modal-header-actions">
+        <button class="btn" style="padding:6px 12px;font-size:12px" onclick="clearEditorGraph()">Borrar todo</button>
+        <button class="close-btn" onclick="closeEditor()">✕</button>
+      </div>
     </div>
 
     <div class="modal-body">
@@ -530,6 +535,7 @@
       <div>
         <div class="modal-section-label">Nodos <span style="font-weight:400;color:var(--muted)">(etiqueta y descripción opcional)</span></div>
         <div class="nodes-grid" id="editor-nodes"></div>
+        <button class="add-edge-btn" onclick="addNodeRow()">+ Agregar nodo</button>
       </div>
 
       <!-- Aristas -->
@@ -878,10 +884,17 @@ function layoutNodes(nodes) {
 
 function drawDijkstra() {
   const s=DS;
-  for(const e of DE) {
+  const weightQueue = [];
+  const curveOffsets = buildCurveOffsets(DE);
+  for(let i=0;i<DE.length;i++) {
+    const e = DE[i];
     const p=pos(DN[e.u]), q=pos(DN[e.v]);
     const inPath=s&&s.pathEdges.some(pe=>(pe.u===e.u&&pe.v===e.v)||(pe.u===e.v&&pe.v===e.u));
-    drawEdge(p, q, inPath?C.pathEdge:C.edgeNormal, inPath?2.5:.9, inPath, e.w, e.dir === true);
+    drawEdge(p, q, inPath?C.pathEdge:C.edgeNormal, inPath?2.5:.9, inPath, e.w, e.dir === true, curveOffsets[i] || 0, weightQueue, 1, e.u, e.v);
+  }
+  // Dibujar etiquetas al final para que ninguna arista las tape
+  for (const w of weightQueue) {
+    drawWeight(w.x, w.y, w.weight, w.alpha);
   }
   for(const n of DN) {
     const {x,y}=pos(n);
@@ -918,15 +931,26 @@ function drawDijkstra() {
 
 function drawKruskal() {
   const s=KS;
-  for(const e of KE_RAW) {
-    if(!s){drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeNormal,.9,false,e.w,false);continue;}
+  const weightQueue = [];
+  const curveOffsets = buildCurveOffsets(KE_RAW);
+  for(let i=0;i<KE_RAW.length;i++) {
+    const e = KE_RAW[i];
+    const curveOffset = curveOffsets[i] || 0;
+    if(!s){
+      drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeNormal,.9,false,e.w,false,curveOffset,weightQueue,0.4,e.u,e.v);
+      continue;
+    }
     const inMST=s.mst.some(m=>m.u===e.u&&m.v===e.v);
     const inRej=s.rejected.some(r=>r.u===e.u&&r.v===e.v);
     const isCand=!KS.done&&s.idx>0&&KE[s.idx-1]&&KE[s.idx-1].u===e.u&&KE[s.idx-1].v===e.v;
-    if(inRej) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeRej,1.2,true,e.w,false);
-    else if(inMST) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeMST,2.5,false,e.w,false);
-    else if(isCand) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeCand,2,false,e.w,false);
-    else drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeNormal,.9,false,e.w,false);
+    if(inRej) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeRej,1.2,true,e.w,false,curveOffset,weightQueue,1,e.u,e.v);
+    else if(inMST) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeMST,2.5,false,e.w,false,curveOffset,weightQueue,1,e.u,e.v);
+    else if(isCand) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeCand,2,false,e.w,false,curveOffset,weightQueue,1,e.u,e.v);
+    else drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeNormal,.9,false,e.w,false,curveOffset,weightQueue,0.4,e.u,e.v);
+  }
+  // Dibujar etiquetas al final para que ninguna arista las tape
+  for (const w of weightQueue) {
+    drawWeight(w.x, w.y, w.weight, w.alpha);
   }
   for(const n of KN) {
     const {x,y}=pos(n);
@@ -934,7 +958,44 @@ function drawKruskal() {
   }
 }
 
-function drawEdge(u, v, color, width, isPath, weight, isDirected) {
+function buildCurveOffsets(edges) {
+  const groups = new Map();
+  edges.forEach((e, idx) => {
+    const a = Math.min(e.u, e.v);
+    const b = Math.max(e.u, e.v);
+    const key = `${a}-${b}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ idx, u: e.u, v: e.v });
+  });
+
+  const offsets = Array(edges.length).fill(0);
+  const baseCurve = 30;
+
+  for (const list of groups.values()) {
+    if (list.length <= 1) continue;
+
+    if (list.length === 2) {
+      const [e1, e2] = list;
+      const opposite = e1.u === e2.v && e1.v === e2.u;
+      if (opposite) {
+        // Simetría pedida: u<v => +30, u>v => -30
+        offsets[e1.idx] = e1.u < e1.v ? baseCurve : -baseCurve;
+        offsets[e2.idx] = e2.u < e2.v ? baseCurve : -baseCurve;
+        continue;
+      }
+    }
+
+    // Fallback para 2+ aristas entre el mismo par de nodos
+    const center = (list.length - 1) / 2;
+    list.forEach((item, i) => {
+      offsets[item.idx] = (i - center) * baseCurve;
+    });
+  }
+
+  return offsets;
+}
+
+function drawEdge(u, v, color, width, isPath, weight, isDirected, curveOffset = 0, weightQueue = null, weightAlpha = 1, edgeU = null, edgeV = null) {
   if (!u || !v) return;
 
   const dx = v.x - u.x;
@@ -950,19 +1011,42 @@ function drawEdge(u, v, color, width, isPath, weight, isDirected) {
   const startY = u.y + Math.sin(angle) * r;
   const endX = v.x - Math.cos(angle) * r;
   const endY = v.y - Math.sin(angle) * r;
+  const isCurved = Math.abs(curveOffset) > 0.1;
+
+  const midX = (startX + endX) / 2;
+  const midY = (startY + endY) / 2;
+  // Normal canónica por par de nodos para evitar que curvas opuestas colapsen
+  let baseDx = dx, baseDy = dy;
+  if (edgeU !== null && edgeV !== null && edgeU > edgeV) {
+    baseDx = -dx;
+    baseDy = -dy;
+  }
+  const nx = -baseDy / distance;
+  const ny = baseDx / distance;
+  const ctrlX = midX + nx * curveOffset;
+  const ctrlY = midY + ny * curveOffset;
 
   ctx.beginPath();
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
   ctx.moveTo(startX, startY);
-  ctx.lineTo(endX, endY);
+  if (isCurved) {
+    ctx.quadraticCurveTo(ctrlX, ctrlY, endX, endY);
+  } else {
+    ctx.lineTo(endX, endY);
+  }
   ctx.stroke();
 
   // Dibujar flecha si es dirigido
   if (isDirected && distance > r * 2) {
+    let arrowAngle = angle;
+    if (isCurved) {
+      // Tangente de curva cuadrática en t=1 => (end - control)
+      arrowAngle = Math.atan2(endY - ctrlY, endX - ctrlX);
+    }
     ctx.save();
     ctx.translate(endX, endY);
-    ctx.rotate(angle);
+    ctx.rotate(arrowAngle);
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.moveTo(0, 0);
@@ -974,15 +1058,31 @@ function drawEdge(u, v, color, width, isPath, weight, isDirected) {
   }
 
   // Dibujar el peso (Label)
-  const midX = (u.x + v.x) / 2;
-  const midY = (u.y + v.y) / 2;
-  drawWeight(midX, midY, weight);
+  if (weightQueue) {
+    if (isCurved) {
+      weightQueue.push({
+        x: ctrlX,
+        y: ctrlY,
+        weight,
+        alpha: weightAlpha
+      });
+    } else {
+      weightQueue.push({
+        x: (u.x + v.x) / 2,
+        y: (u.y + v.y) / 2,
+        weight,
+        alpha: weightAlpha
+      });
+    }
+  }
 }
 
-function drawWeight(x, y, weight) {
+function drawWeight(x, y, weight, alpha = 1) {
   const txt = String(weight);
   const bw = Math.max(28, txt.length * 9 + 12), bh = 18;
   
+  ctx.save();
+  ctx.globalAlpha = alpha;
   // Fondo neutro para badges de distancia
   ctx.fillStyle = 'rgba(255,255,255,.95)';
   ctx.strokeStyle = '#333';
@@ -998,6 +1098,7 @@ function drawWeight(x, y, weight) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(txt, x, y);
+  ctx.restore();
 }
 
 function drawNode(x,y,label,sub,fill,stroke,sw,dist) {
@@ -1257,24 +1358,26 @@ function assignPositions(nodes) {
 
 let editorNodes = []; // [{label, sub}]
 let editorEdges = []; // [{u, v, w}]
+let nextEditorNodeId = 0;
 
 function openEditor() {
   // Populate editor with current data
   if(algo==='dijkstra') {
-    editorNodes = DN.map(n=>({label:n.label, sub:n.sub||''}));
+    editorNodes = DN.map(n=>({id:n.id, label:n.label, sub:n.sub||''}));
     editorEdges = DE.map(e=>({u:e.u, v:e.v, w:e.w, dir:e.dir||false}));
     document.getElementById('modal-title').textContent = 'Editar grafo — Dijkstra';
     document.getElementById('modal-subtitle').textContent = 'Modifica nodos y aristas del algoritmo de camino mínimo.';
     document.getElementById('unit-input').value = currentUnit.dijkstra;
     document.getElementById('graph-name-input').value = currentGraphName.dijkstra;
   } else {
-    editorNodes = KN.map(n=>({label:n.label, sub:n.sub||''}));
+    editorNodes = KN.map(n=>({id:n.id, label:n.label, sub:n.sub||''}));
     editorEdges = KE_RAW.map(e=>({u:e.u, v:e.v, w:e.w, dir:false})); // Kruskal siempre no-dirigido
     document.getElementById('modal-title').textContent = 'Editar grafo — Kruskal';
     document.getElementById('modal-subtitle').textContent = 'Modifica nodos y aristas del árbol de expansión mínima.';
     document.getElementById('unit-input').value = currentUnit.kruskal;
     document.getElementById('graph-name-input').value = currentGraphName.kruskal;
   }
+  nextEditorNodeId = editorNodes.length ? Math.max(...editorNodes.map(n=>n.id ?? -1)) + 1 : 0;
   renderPresets();
   renderEditorNodes();
   renderEditorEdges();
@@ -1298,8 +1401,9 @@ function renderPresets() {
 
 function loadPreset(idx) {
   const p = PRESETS[algo][idx];
-  editorNodes = p.nodes.map(n=>({label:n.label, sub:n.sub||''}));
+  editorNodes = p.nodes.map((n,i)=>({id:i, label:n.label, sub:n.sub||''}));
   editorEdges = p.edges.map(e=>({u:e.u, v:e.v, w:e.w, dir:e.dir||false}));
+  nextEditorNodeId = editorNodes.length;
   document.getElementById('unit-input').value = p.unit || (algo==='kruskal'?'km':'ms');
   document.getElementById('graph-name-input').value = p.graphName || p.name;
   renderEditorNodes();
@@ -1310,6 +1414,10 @@ function loadPreset(idx) {
 function renderEditorNodes() {
   const container = document.getElementById('editor-nodes');
   container.innerHTML = '';
+  if(editorNodes.length===0){
+    container.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:8px 2px">No hay nodos. Usa <strong>+ Agregar nodo</strong>.</div>`;
+    return;
+  }
   editorNodes.forEach((n,i)=>{
     const div = document.createElement('div');
     div.className = 'node-row';
@@ -1319,6 +1427,7 @@ function renderEditorNodes() {
         oninput="editorNodes[${i}].label=this.value; syncEdgeSelects()">
       <input type="text" value="${escHtml(n.sub)}" placeholder="Descripción" maxlength="20"
         oninput="editorNodes[${i}].sub=this.value">
+      <button class="row-del-btn" title="Eliminar nodo" onclick="deleteNode(${i})">×</button>
     `;
     container.appendChild(div);
   });
@@ -1340,7 +1449,7 @@ function renderEditorEdges() {
       <span class="edge-arrow" style="font-size:11px;color:var(--muted)">peso</span>
       <input type="number" id="e-w-${i}" min="1" max="9999" value="${e.w}"
         oninput="editorEdges[${i}].w=+this.value">
-      <button class="del-btn" onclick="deleteEdge(${i})">×</button>
+      <button class="row-del-btn" title="Eliminar arista" onclick="deleteEdge(${i})">×</button>
     `;
     container.appendChild(div);
   });
@@ -1364,12 +1473,52 @@ function syncEdgeSelects() {
 }
 
 function addEdgeRow() {
+  if(editorNodes.length < 2) {
+    showError('Debes agregar al menos 2 nodos antes de crear aristas.');
+    return;
+  }
+  hideError();
   editorEdges.push({u:0, v:1, w:1});
+  renderEditorEdges();
+}
+
+function addNodeRow() {
+  hideError();
+  const newId = nextEditorNodeId++;
+  editorNodes.push({id:newId, label:`N${newId}`, sub:''});
+  renderEditorNodes();
+  renderEditorEdges();
+}
+
+function clearEditorGraph() {
+  editorNodes = [];
+  editorEdges = [];
+  nextEditorNodeId = 0;
+  hideError();
+  renderEditorNodes();
   renderEditorEdges();
 }
 
 function deleteEdge(idx) {
   editorEdges.splice(idx,1);
+  renderEditorEdges();
+}
+
+function deleteNode(idx) {
+  if(idx < 0 || idx >= editorNodes.length) return;
+  editorNodes.splice(idx, 1);
+
+  // Eliminar aristas que referencian al nodo borrado y ajustar índices restantes
+  editorEdges = editorEdges
+    .filter(e => e.u !== idx && e.v !== idx)
+    .map(e => ({
+      ...e,
+      u: e.u > idx ? e.u - 1 : e.u,
+      v: e.v > idx ? e.v - 1 : e.v
+    }));
+
+  hideError();
+  renderEditorNodes();
   renderEditorEdges();
 }
 
@@ -1389,8 +1538,8 @@ function applyEditor() {
   hideError();
 
   // Validate
-  if(editorNodes.length < 2) { showError('Se necesitan al menos 2 nodos.'); return; }
-  if(editorEdges.length < 1) { showError('Se necesita al menos 1 arista.'); return; }
+  if(editorNodes.length === 0) { showError('Debes tener al menos un nodo para generar el grafo'); return; }
+  if(editorNodes.length > 1 && editorEdges.length < 1) { showError('Se necesita al menos 1 arista.'); return; }
   for(const n of editorNodes) {
     if(!n.label.trim()) { showError('Todos los nodos deben tener una etiqueta.'); return; }
   }

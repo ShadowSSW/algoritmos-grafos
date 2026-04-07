@@ -1223,14 +1223,17 @@ function initDistTable() {
     return `<tr><td>${n.label}${desc?` <span style="color:var(--muted);font-size:11px">${desc}</span>`:''}</td><td>${d}</td></tr>`;
   }).join('');
 }
-function buildSrcSelect() {
+function buildSrcSelect(selectedSrc = null, selectedDest = null) {
   const srcSel=document.getElementById('src-sel');
   const destSel=document.getElementById('dest-sel');
   const options=DN.map((n,i)=>`<option value="${i}">${n.label}</option>`).join('');
   srcSel.innerHTML=options;
   destSel.innerHTML=options;
-  // Establecer destino por defecto al último nodo
-  destSel.value=DN.length-1;
+  const srcOk = Number.isInteger(selectedSrc) && selectedSrc >= 0 && selectedSrc < DN.length;
+  const destOk = Number.isInteger(selectedDest) && selectedDest >= 0 && selectedDest < DN.length;
+  srcSel.value = srcOk ? selectedSrc : 0;
+  // Destino por defecto al último nodo si no hay uno válido previo
+  destSel.value = destOk ? selectedDest : Math.max(0, DN.length - 1);
 }
 function onDestChange() {
   stopAuto(); 
@@ -1534,6 +1537,18 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function getDijkstraEdgeSignature(edges) {
+  return edges
+    .map(e => {
+      if (e.dir) return `d:${e.u}>${e.v}:${e.w}`;
+      const a = Math.min(e.u, e.v);
+      const b = Math.max(e.u, e.v);
+      return `u:${a}-${b}:${e.w}`;
+    })
+    .sort()
+    .join('|');
+}
+
 function applyEditor() {
   hideError();
 
@@ -1559,16 +1574,40 @@ function applyEditor() {
   stopAuto();
 
   if(algo==='dijkstra') {
-    DN = editorNodes.map((n,i)=>({id:i, label:n.label.trim(), sub:n.sub.trim(), x:0, y:0}));
+    const srcSel = document.getElementById('src-sel');
+    const destSel = document.getElementById('dest-sel');
+    const prevSrc = srcSel ? +srcSel.value : 0;
+    const prevDest = destSel ? +destSel.value : Math.max(0, DN.length - 1);
+    const hadDS = !!DS;
+    const prevNodeCount = DN.length;
+    const prevEdgeSig = getDijkstraEdgeSignature(DE);
+
+    const nextDN = editorNodes.map((n,i)=>({id:i, label:n.label.trim(), sub:n.sub.trim(), x:0, y:0}));
+    const nextDE = editorEdges.map(e=>({u:e.u, v:e.v, w:+e.w, dir:e.dir||false}));
+    const structureChanged = prevNodeCount !== nextDN.length || prevEdgeSig !== getDijkstraEdgeSignature(nextDE);
+
+    DN = nextDN;
     assignPositions(DN);
-    DE = editorEdges.map(e=>({u:e.u, v:e.v, w:+e.w, dir:e.dir||false}));
+    DE = nextDE;
     currentUnit.dijkstra = unit;
     currentGraphName.dijkstra = graphName;
-    DS = null;
-    buildSrcSelect();
-    resetDState(0, DN.length-1);
-    initDistTable();
-    setStatus('', 'Grafo actualizado. Selecciona el nodo fuente y presiona <strong>Siguiente paso</strong>');
+
+    const safeSrc = (prevSrc >= 0 && prevSrc < DN.length) ? prevSrc : 0;
+    const safeDest = (prevDest >= 0 && prevDest < DN.length) ? prevDest : Math.max(0, DN.length - 1);
+    buildSrcSelect(safeSrc, safeDest);
+
+    if (structureChanged || !hadDS) {
+      DS = null;
+      resetDState(safeSrc, safeDest);
+      initDistTable();
+      clearLog();
+      setStatus('', 'Grafo actualizado. Selecciona el nodo fuente y presiona <strong>Siguiente paso</strong>');
+    } else {
+      // Solo cambiaron textos (label/sub): mantener ejecución y selección actual
+      DS.src = safeSrc;
+      DS.dest = safeDest;
+      updateDistTable();
+    }
   } else {
     KN = editorNodes.map((n,i)=>({id:i, label:n.label.trim(), sub:n.sub.trim(), x:0, y:0}));
     assignPositions(KN);
@@ -1583,7 +1622,7 @@ function applyEditor() {
   }
 
   document.getElementById('canvas-label').textContent = graphName;
-  clearLog();
+  if(algo!=='dijkstra') clearLog();
   draw();
   closeEditor();
 }

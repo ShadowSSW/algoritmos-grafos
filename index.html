@@ -402,6 +402,10 @@
             <span style="font-size:12px;color:var(--muted)">Desde</span>
             <select id="src-sel" onchange="onSrcChange()"></select>
           </div>
+          <div id="dest-wrap" style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:12px;color:var(--muted)">Hasta</span>
+            <select id="dest-sel" onchange="onDestChange()"></select>
+          </div>
           <span class="algo-badge" id="algo-badge">Dijkstra</span>
         </div>
       </div>
@@ -693,10 +697,10 @@ let autoTimer = null;
 let DS = null;
 let KS = null;
 
-function resetDState(src=0) {
+function resetDState(src=0, dest=DN.length-1) {
   const n = DN.length;
   DS = {
-    src, step:0, done:false,
+    src, dest, step:0, done:false,
     dist: Array(n).fill(INF),
     prev: Array(n).fill(-1),
     visited: Array(n).fill(false),
@@ -731,6 +735,19 @@ function buildPath(dest) {
 }
 function stepDijkstra() {
   if(DS.done) return false;
+  
+  // Caso especial: origen = destino
+  if(DS.src === DS.dest) {
+    DS.done = true;
+    DS.visited[DS.src] = true;
+    DS.current = -1; // Limpiar nodo actual al terminar
+    DS.pathEdges = []; // No hay aristas en el camino
+    addLog('accept',`Origen y destino son el mismo nodo (${DN[DS.src].label}). Distancia: 0`);
+    setStatus('done','¡Completado!', `Distancia mínima: 0 (mismo nodo)`);
+    updateDistTable();
+    return false;
+  }
+  
   const u = minDist();
   if(u===-1){DS.done=true;return false;}
   DS.visited[u]=true; DS.current=u; DS.step++;
@@ -743,13 +760,14 @@ function stepDijkstra() {
     const nd=DS.dist[u]+e.w;
     if(nd<DS.dist[v]) {
       DS.dist[v]=nd; DS.prev[v]=u; updated=true;
-      addLog('update',`  → ${DN[v].label}: ${DS.dist[v]===INF?'∞':DS.dist[v]} → ${nd} (vía ${DN[u].label})`);
+      addLog('update',`  → ${DN[v].label}: ${DS.dist[v]===INF?'INF':DS.dist[v]} → ${nd} (vía ${DN[u].label})`);
     }
   }
   if(!updated) addLog('','  Sin actualizaciones.');
   if(DN.every(n=>DS.visited[n.id])) {
     DS.done=true;
-    DS.pathEdges = buildPath(DN.length-1);
+    DS.current = -1; // Limpiar nodo actual al terminar
+    DS.pathEdges = buildPath(DS.dest);
     addLog('accept','¡Completado! Todas las distancias calculadas.');
     setStatus('done','¡Algoritmo completado!', `Paso ${DS.step} - Todos los nodos visitados`);
   } else {
@@ -848,11 +866,22 @@ function drawDijkstra() {
     const {x,y}=pos(n);
     let fill=C.nodeDefault, stroke=C.nodeStroke, sw=1.5;
     if(s){
-      if(s.visited[n.id]&&n.id!==s.current){fill=C.nodeVisited;stroke=C.nodeVisitedStroke;sw=2;}
-      if(n.id===s.current){fill=C.nodeCurrent;stroke=C.nodeCurrentStroke;sw=2.5;}
-      if(n.id===DN.length-1){fill=C.nodeDest;stroke=C.nodeDestStroke;}
+      if(n.id===DS.dest){fill=C.nodeDest;stroke=C.nodeDestStroke;}
+      else if(n.id===s.current){fill=C.nodeCurrent;stroke=C.nodeCurrentStroke;sw=2.5;}
+      else if(s.visited[n.id]){fill=C.nodeVisited;stroke=C.nodeVisitedStroke;sw=2;}
     }
-    drawNode(x,y,n.label,n.sub,fill,stroke,sw,s?DS.dist[n.id]:null);
+    // Determinar etiqueta dinámica para el nodo
+    let dynamicSub = n.sub || '';
+    if(s && DS.src !== undefined && DS.dest !== undefined) {
+      if(n.id === DS.src && n.id === DS.dest) {
+        dynamicSub = dynamicSub ? `${dynamicSub} (origen/destino)` : '(origen/destino)';
+      } else if(n.id === DS.src) {
+        dynamicSub = dynamicSub ? `${dynamicSub} (origen)` : '(origen)';
+      } else if(n.id === DS.dest) {
+        dynamicSub = dynamicSub ? `${dynamicSub} (destino)` : '(destino)';
+      }
+    }
+    drawNode(x,y,n.label,dynamicSub,fill,stroke,sw,s?DS.dist[n.id]:null);
   }
 }
 
@@ -986,7 +1015,16 @@ function updateDistTable() {
     tr.className=current?'current':visited?'visited':'';
     const d=DS.dist[n.id];
     const via=DS.prev[n.id]!==-1?` · ${DN[DS.prev[n.id]].label}`:'';
-    tr.innerHTML=`<td><span class="node-chip">${n.label}${n.sub?` <span style="color:var(--muted);font-weight:400;font-size:11px">${n.sub}</span>`:''}</span></td><td>${d===INF?'∞':d}${via}</td>`;
+    // Mostrar descripción dinámica según el rol del nodo
+    let desc = n.sub || '';
+    if(n.id === DS.src && n.id === DS.dest) {
+      desc = desc ? `${desc} (origen/destino)` : '(origen/destino)';
+    } else if(n.id === DS.src) {
+      desc = desc ? `${desc} (origen)` : '(origen)';
+    } else if(n.id === DS.dest) {
+      desc = desc ? `${desc} (destino)` : '(destino)';
+    }
+    tr.innerHTML=`<td><span class="node-chip">${n.label}${desc?` <span style="color:var(--muted);font-weight:400;font-size:11px">${desc}</span>`:''}</span></td><td>${d===INF?'INF':d}${via}</td>`;
     tbody.appendChild(tr);
   }
 }
@@ -1000,11 +1038,44 @@ function updateKruskalPanel() {
 }
 function initDistTable() {
   const tbody=document.getElementById('dist-tbody');
-  tbody.innerHTML=DN.map(n=>`<tr><td>${n.label}${n.sub?` <span style="color:var(--muted);font-size:11px">${n.sub}</span>`:''}</td><td>—</td></tr>`).join('');
+  if(!DS) {
+    tbody.innerHTML=DN.map(n=>`<tr><td>${n.label}${n.sub?` <span style="color:var(--muted);font-size:11px">${n.sub}</span>`:''}</td><td>---</td></tr>`).join('');
+    return;
+  }
+  tbody.innerHTML=DN.map(n=>{
+    let desc = n.sub || '';
+    if(DS.src !== undefined && DS.dest !== undefined) {
+      if(n.id === DS.src && n.id === DS.dest) {
+        desc = desc ? `${desc} (origen/destino)` : '(origen/destino)';
+      } else if(n.id === DS.src) {
+        desc = desc ? `${desc} (origen)` : '(origen)';
+      } else if(n.id === DS.dest) {
+        desc = desc ? `${desc} (destino)` : '(destino)';
+      }
+    }
+    const d = n.id === DS.src ? 0 : 'INF';
+    return `<tr><td>${n.label}${desc?` <span style="color:var(--muted);font-size:11px">${desc}</span>`:''}</td><td>${d}</td></tr>`;
+  }).join('');
 }
 function buildSrcSelect() {
-  const sel=document.getElementById('src-sel');
-  sel.innerHTML=DN.map((n,i)=>`<option value="${i}">${n.label}</option>`).join('');
+  const srcSel=document.getElementById('src-sel');
+  const destSel=document.getElementById('dest-sel');
+  const options=DN.map((n,i)=>`<option value="${i}">${n.label}</option>`).join('');
+  srcSel.innerHTML=options;
+  destSel.innerHTML=options;
+  // Establecer destino por defecto al último nodo
+  destSel.value=DN.length-1;
+}
+function onDestChange() {
+  stopAuto(); 
+  const newSrc = +document.getElementById('src-sel').value;
+  const newDest = +document.getElementById('dest-sel').value;
+  DS = null; // Forzar reinicialización
+  resetDState(newSrc, newDest); 
+  initDistTable(); 
+  clearLog(); 
+  draw();
+  setStatus('',`Destino cambiado a ${DN[newDest].label}. Presiona <strong>Siguiente paso</strong>`);
 }
 
 /* ══════════════════════════════════════════════
@@ -1013,7 +1084,7 @@ function buildSrcSelect() {
 function doStep() {
   if(!autoTimer) stopAuto();
   if(algo==='dijkstra') {
-    if(!DS){resetDState(+document.getElementById('src-sel').value);initDistTable();setStatus('active','Iniciando Dijkstra...');}
+    if(!DS){resetDState(+document.getElementById('src-sel').value, +document.getElementById('dest-sel').value);initDistTable();setStatus('active','Iniciando Dijkstra...');}
     if(!stepDijkstra()) setStatus('done','¡Completado!');
   } else {
     if(!KS){resetKState();addLog('head',`Aristas ordenadas: ${KE.map(e=>`${KN[e.u].label}-${KN[e.v].label}(${e.w})`).join(', ')}`);setStatus('active','Iniciando Kruskal...');}
@@ -1024,9 +1095,9 @@ function doStep() {
 function doReset() {
   stopAuto();
   if(algo==='dijkstra') {
-    DS=null; resetDState(+document.getElementById('src-sel').value);
+    DS=null; resetDState(+document.getElementById('src-sel').value, +document.getElementById('dest-sel').value);
     initDistTable();
-    setStatus('','Selecciona el nodo fuente y presiona <strong>Siguiente paso</strong>');
+    setStatus('','Selecciona los nodos fuente y destino y presiona <strong>Siguiente paso</strong>');
   } else {
     KS=null;
     document.getElementById('mst-cost').textContent='—';
@@ -1054,7 +1125,7 @@ function stopAuto() {
 }
 function onSrcChange() {
   stopAuto(); DS=null;
-  resetDState(+document.getElementById('src-sel').value);
+  resetDState(+document.getElementById('src-sel').value, +document.getElementById('dest-sel').value);
   initDistTable(); clearLog(); draw();
   setStatus('','Nodo fuente cambiado. Presiona <strong>Siguiente paso</strong>');
 }
@@ -1065,6 +1136,7 @@ function switchAlgo(name, btn) {
   document.getElementById('panel-dist').classList.toggle('active', name==='dijkstra');
   document.getElementById('panel-kruskal-info').classList.toggle('active', name==='kruskal');
   document.getElementById('src-wrap').style.display=name==='dijkstra'?'flex':'none';
+  document.getElementById('dest-wrap').style.display=name==='dijkstra'?'flex':'none';
   document.getElementById('algo-badge').textContent=name==='dijkstra'?'Dijkstra':'Kruskal';
   document.getElementById('algo-badge').className='algo-badge'+(name==='kruskal'?' green':'');
   document.getElementById('legend-d').style.display=name==='dijkstra'?'flex':'none';
@@ -1072,8 +1144,8 @@ function switchAlgo(name, btn) {
   document.getElementById('canvas-label').textContent=currentGraphName[name];
   clearLog();
   if(name==='dijkstra'){
-    DS=null; resetDState(0); initDistTable();
-    setStatus('','Selecciona el nodo fuente y presiona <strong>Siguiente paso</strong>');
+    DS=null; resetDState(0, DN.length-1); initDistTable();
+    setStatus('','Selecciona los nodos fuente y destino y presiona <strong>Siguiente paso</strong>');
   } else {
     KS=null;
     document.getElementById('mst-cost').textContent='—';
@@ -1270,7 +1342,7 @@ function applyEditor() {
     currentGraphName.dijkstra = graphName;
     DS = null;
     buildSrcSelect();
-    resetDState(0);
+    resetDState(0, DN.length-1);
     initDistTable();
     setStatus('', 'Grafo actualizado. Selecciona el nodo fuente y presiona <strong>Siguiente paso</strong>');
   } else {
@@ -1301,7 +1373,7 @@ window.addEventListener('load', ()=>{
   assignPositions(KN);
   resize();
   buildSrcSelect();
-  resetDState(0);
+  resetDState(0, DN.length-1);
   initDistTable();
   setStatus('', 'Selecciona el nodo fuente y presiona <strong>Siguiente paso</strong>');
   draw();

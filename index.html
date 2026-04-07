@@ -264,6 +264,17 @@
     transition: transform .25s ease;
   }
   .modal-overlay.open .modal { transform: none; }
+  .confirm-overlay { position: fixed; inset: 0; z-index: 1100; background: rgba(44,37,32,.45); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+  .confirm-overlay.open { opacity: 1; pointer-events: all; }
+  .confirm-modal {
+    width: min(440px, 92vw); background: #fff; border: 1px solid var(--sand); border-radius: 18px;
+    box-shadow: 0 24px 60px rgba(44,37,32,.2); padding: 18px 18px 14px; transform: translateY(10px) scale(.98);
+    transition: transform .2s ease;
+  }
+  .confirm-overlay.open .confirm-modal { transform: none; }
+  .confirm-title { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+  .confirm-text { font-size: 13px; color: var(--ink2); line-height: 1.5; }
+  .confirm-actions { margin-top: 14px; display: flex; justify-content: flex-end; gap: 8px; }
 
   .modal-header {
     padding: 22px 26px 18px;
@@ -576,6 +587,20 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════
+     MODAL — CONFIRMAR IMPORTACIÓN
+══════════════════════════════════════════ -->
+<div class="confirm-overlay" id="confirm-copy-overlay" onclick="handleConfirmOverlayClick(event)">
+  <div class="confirm-modal">
+    <div class="confirm-title">Cargar grafo de Dijkstra</div>
+    <div class="confirm-text">¿Quieres usar en Kruskal el grafo que acabas de construir en Dijkstra? Se copiarán nodos, conexiones, pesos y posiciones.</div>
+    <div class="confirm-actions">
+      <button class="btn" onclick="resolveCopyConfirm(false)">Cancelar</button>
+      <button class="btn primary" onclick="resolveCopyConfirm(true)">Sí, cargar grafo</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ══════════════════════════════════════════════
    PRESETS
@@ -708,6 +733,61 @@ let DE = PRESETS.dijkstra[0].edges.map(e=>({...e, dir: e.dir || false}));
 let KN = PRESETS.kruskal[0].nodes.map((n,i)=>({id:i,...n}));
 let KE_RAW = PRESETS.kruskal[0].edges.map(e=>({...e, dir: false})); // Kruskal siempre no-dirigido
 let KE = [...KE_RAW].sort((a,b)=>a.w-b.w);
+const GRAPH_STORAGE_KEY = 'graph-visualizer-state-v1';
+
+function persistGraphState() {
+  try {
+    const payload = {
+      currentUnit,
+      currentGraphName,
+      DN,
+      DE,
+      KN,
+      KE_RAW
+    };
+    localStorage.setItem(GRAPH_STORAGE_KEY, JSON.stringify(payload));
+  } catch (e) {
+    // Ignorar errores de almacenamiento (modo privado/cuota)
+  }
+}
+
+function loadPersistedGraphs() {
+  try {
+    const raw = localStorage.getItem(GRAPH_STORAGE_KEY);
+    if (!raw) return;
+    const state = JSON.parse(raw);
+    if (!state || !Array.isArray(state.DN) || !Array.isArray(state.DE) || !Array.isArray(state.KN) || !Array.isArray(state.KE_RAW)) return;
+
+    DN = state.DN.map((n, i) => ({
+      id: i,
+      label: String(n.label || `N${i}`),
+      sub: String(n.sub || ''),
+      x: Number.isFinite(+n.x) ? +n.x : undefined,
+      y: Number.isFinite(+n.y) ? +n.y : undefined
+    }));
+    DE = state.DE.map(e => ({ u:+e.u, v:+e.v, w:+e.w, dir: !!e.dir })).filter(e => Number.isInteger(e.u) && Number.isInteger(e.v));
+    KN = state.KN.map((n, i) => ({
+      id: i,
+      label: String(n.label || `N${i}`),
+      sub: String(n.sub || ''),
+      x: Number.isFinite(+n.x) ? +n.x : undefined,
+      y: Number.isFinite(+n.y) ? +n.y : undefined
+    }));
+    KE_RAW = state.KE_RAW.map(e => ({ u:+e.u, v:+e.v, w:+e.w, dir:false })).filter(e => Number.isInteger(e.u) && Number.isInteger(e.v));
+    KE = [...KE_RAW].sort((a,b)=>a.w-b.w);
+
+    if (state.currentUnit && typeof state.currentUnit === 'object') {
+      currentUnit.dijkstra = String(state.currentUnit.dijkstra || currentUnit.dijkstra);
+      currentUnit.kruskal = String(state.currentUnit.kruskal || currentUnit.kruskal);
+    }
+    if (state.currentGraphName && typeof state.currentGraphName === 'object') {
+      currentGraphName.dijkstra = String(state.currentGraphName.dijkstra || currentGraphName.dijkstra);
+      currentGraphName.kruskal = String(state.currentGraphName.kruskal || currentGraphName.kruskal);
+    }
+  } catch (e) {
+    // Si el JSON está corrupto, continuar con presets
+  }
+}
 
 /* ══════════════════════════════════════════════
    STATE
@@ -931,6 +1011,7 @@ function moveNodeDrag(evt) {
 }
 
 function endNodeDrag() {
+  if (isDraggingNode) persistGraphState();
   isDraggingNode = false;
   draggingNodeId = -1;
   cv.style.cursor = 'default';
@@ -1373,8 +1454,44 @@ function onSrcChange() {
   initDistTable(); clearLog(); draw();
   setStatus('','Nodo fuente cambiado. Presiona <strong>Siguiente paso</strong>');
 }
-function switchAlgo(name, btn) {
+
+function copyDijkstraGraphToKruskal() {
+  KN = DN.map(n=>({id:n.id, label:n.label, sub:n.sub||'', x:n.x, y:n.y}));
+  KE_RAW = DE.map(e=>({u:e.u, v:e.v, w:e.w, dir:false}));
+  KE = [...KE_RAW].sort((a,b)=>a.w-b.w);
+  currentUnit.kruskal = currentUnit.dijkstra || currentUnit.kruskal;
+  currentGraphName.kruskal = `${currentGraphName.dijkstra} (Kruskal)`;
+}
+
+let confirmCopyResolver = null;
+
+function askCopyGraphConfirm() {
+  return new Promise(resolve => {
+    confirmCopyResolver = resolve;
+    document.getElementById('confirm-copy-overlay').classList.add('open');
+  });
+}
+
+function resolveCopyConfirm(accepted) {
+  document.getElementById('confirm-copy-overlay').classList.remove('open');
+  if (confirmCopyResolver) {
+    const resolve = confirmCopyResolver;
+    confirmCopyResolver = null;
+    resolve(accepted);
+  }
+}
+
+function handleConfirmOverlayClick(e) {
+  if (e.target === document.getElementById('confirm-copy-overlay')) resolveCopyConfirm(false);
+}
+
+async function switchAlgo(name, btn) {
+  const prevAlgo = algo;
   stopAuto(); algo=name;
+  if(prevAlgo==='dijkstra' && name==='kruskal' && DN.length>0 && DE.length>0) {
+    const shouldCopy = await askCopyGraphConfirm();
+    if(shouldCopy) copyDijkstraGraphToKruskal();
+  }
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('panel-dist').classList.toggle('active', name==='dijkstra');
@@ -1396,6 +1513,7 @@ function switchAlgo(name, btn) {
     document.getElementById('mst-edges').textContent='—';
     setStatus('','Presiona <strong>Siguiente paso</strong> para iniciar Kruskal');
   }
+  persistGraphState();
   draw();
 }
 
@@ -1698,6 +1816,7 @@ function applyEditor() {
 
   document.getElementById('canvas-label').textContent = graphName;
   if(algo!=='dijkstra') clearLog();
+  persistGraphState();
   draw();
   closeEditor();
 }
@@ -1706,6 +1825,7 @@ function applyEditor() {
    INIT
 ══════════════════════════════════════════════ */
 window.addEventListener('load', ()=>{
+  loadPersistedGraphs();
   // Assign positions to initial data
   assignPositions(DN);
   assignPositions(KN);

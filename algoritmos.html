@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dijkstra & Kruskal — Visualizador Interactivo</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream:   #f7f4ef;
+    --cream2:  #f0ece4;
+    --sand:    #e4ddd1;
+    --muted:   #a89e90;
+    --ink:     #2c2520;
+    --ink2:    #4a4038;
+    --blue:    #3b7dd8;
+    --blue-l:  #ddeaf9;
+    --blue-m:  #8ab8ef;
+    --green:   #2d9e6b;
+    --green-l: #d4f0e4;
+    --green-m: #7dcbaa;
+    --amber:   #d4891a;
+    --amber-l: #fdecd0;
+    --amber-m: #f0bc72;
+    --rose:    #d45a4a;
+    --rose-l:  #fde4df;
+    --r: 18px;
+    --r-sm: 12px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    padding: 2.5rem 2rem 0;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .header-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--cream2); border: 1px solid var(--sand);
+    border-radius: 100px; padding: 5px 14px 5px 10px;
+    font-size: 12px; color: var(--muted); font-weight: 500;
+    margin-bottom: 1.2rem; letter-spacing: .03em;
+  }
+  .header-pill span { width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block; }
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    font-weight: 400;
+    letter-spacing: -.01em;
+    color: var(--ink);
+    line-height: 1.1;
+  }
+  h1 em { font-style: italic; color: var(--blue); }
+  .subtitle { font-size: 14px; color: var(--muted); margin-top: 6px; font-weight: 400; }
+
+  /* ── TABS ── */
+  .tabs-row {
+    display: flex; gap: 6px; margin: 2rem 0 1.5rem;
+    max-width: 1100px; margin-left: auto; margin-right: auto;
+    padding: 0 2rem;
+  }
+  .tab-btn {
+    padding: 9px 22px; border-radius: 100px;
+    border: 1.5px solid var(--sand); background: transparent;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
+    color: var(--muted); cursor: pointer;
+    transition: all .2s ease;
+  }
+  .tab-btn:hover { border-color: var(--blue-m); color: var(--blue); }
+  .tab-btn.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+  /* ── MAIN LAYOUT ── */
+  .main {
+    max-width: 1100px; margin: 0 auto; padding: 0 2rem 3rem;
+    display: grid; grid-template-columns: 1fr 340px; gap: 18px;
+  }
+  @media(max-width:820px){ .main{grid-template-columns:1fr;} }
+
+  /* ── CARD ── */
+  .card {
+    background: #fff; border-radius: var(--r); border: 1px solid var(--sand);
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--cream2);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .card-title { font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+
+  /* ── CANVAS ── */
+  #canvas-wrap { padding: 0; position: relative; }
+  canvas { display: block; width: 100%; height: 420px; border-radius: 0; }
+
+  /* ── CONTROLS ── */
+  .controls-bar {
+    padding: 14px 20px; border-top: 1px solid var(--cream2);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    padding: 8px 18px; border-radius: 100px;
+    border: 1.5px solid var(--sand); background: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    color: var(--ink2); cursor: pointer; transition: all .18s ease;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--blue-m); color: var(--blue); transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .btn.primary:hover { background: var(--ink2); }
+  .btn.accent { background: var(--blue-l); border-color: var(--blue-m); color: var(--blue); }
+  .btn.edit-btn { background: var(--amber-l); border-color: var(--amber-m); color: var(--amber); }
+  .btn.edit-btn:hover { background: var(--amber-m); color: #fff; border-color: var(--amber-m); }
+  .speed-wrap { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .speed-wrap label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  input[type=range] {
+    -webkit-appearance: none; height: 4px; border-radius: 4px;
+    background: var(--sand); outline: none; width: 80px;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px;
+    border-radius: 50%; background: var(--ink); cursor: pointer;
+  }
+
+  /* ── STATUS BAR ── */
+  .status-bar {
+    padding: 10px 20px; background: var(--cream2);
+    font-size: 12.5px; color: var(--ink2); font-family: 'DM Mono', monospace;
+    min-height: 38px; display: flex; align-items: center; gap: 8px;
+    border-top: 1px solid var(--sand);
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; transition: background .3s; }
+  .status-dot.active { background: var(--amber); }
+  .status-dot.done   { background: var(--green); }
+
+  /* ── RIGHT PANEL ── */
+  .panel-right { display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── DIST TABLE ── */
+  .dist-table { width: 100%; border-collapse: collapse; }
+  .dist-table th { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding: 0 16px 8px; text-align: left; }
+  .dist-table td { padding: 7px 16px; font-size: 13px; border-top: 1px solid var(--cream2); }
+  .dist-table td:last-child { font-family: 'DM Mono', monospace; font-size: 12px; text-align: right; }
+  .dist-table tr { transition: background .15s; }
+  .dist-table tr.visited td { background: var(--green-l); }
+  .dist-table tr.current td { background: var(--amber-l); font-weight: 500; }
+  .node-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; }
+  .node-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ── LOG ── */
+  .log-wrap { padding: 14px 18px; max-height: 200px; overflow-y: auto; }
+  .log-entry {
+    font-size: 12px; font-family: 'DM Mono', monospace;
+    padding: 4px 0; border-bottom: 1px solid var(--cream2);
+    color: var(--ink2); line-height: 1.6;
+    animation: slideIn .2s ease;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-entry.accept { color: var(--green); }
+  .log-entry.reject { color: var(--rose); }
+  .log-entry.update { color: var(--blue); }
+  .log-entry.head   { color: var(--ink); font-weight: 600; font-size: 13px; }
+  .log-entry::before {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: 10px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .log-entry.accept::before { content: ' '; background: var(--green-l); color: var(--green); }
+  .log-entry.reject::before { content: ' '; background: var(--rose-l); color: var(--rose); }
+  .log-entry.update::before { content: ' '; background: var(--blue-l); color: var(--blue); }
+  .log-entry.head::before { content: ' '; background: var(--ink2); color: #fff; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+
+  /* ── LEGEND ── */
+  .legend { display: flex; flex-wrap: wrap; gap: 12px 20px; padding: 16px 20px; }
+  .leg-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); font-weight: 500; }
+  .leg-circle { 
+    width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+    border: 3px solid; transition: all 0.3s ease;
+  }
+  .leg-line { 
+    width: 28px; height: 4px; border-radius: 3px; flex-shrink: 0;
+    position: relative;
+  }
+  .leg-line.dashed { border-top: 3px dashed; height: 0; }
+
+  /* ── SRC SELECT ── */
+  select {
+    padding: 7px 12px; border: 1.5px solid var(--sand); border-radius: 100px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--ink2);
+    background: #fff; cursor: pointer; outline: none;
+    transition: border-color .15s;
+  }
+  select:focus { border-color: var(--blue-m); }
+
+  /* ── ALGO BADGE ── */
+  .algo-badge {
+    font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 100px; background: var(--blue-l); color: var(--blue);
+  }
+  .algo-badge.green { background: var(--green-l); color: var(--green); }
+
+  /* ── MST COST ── */
+  .cost-display { text-align: center; padding: 16px; border-top: 1px solid var(--cream2); }
+  .cost-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  .cost-value {
+    font-family: 'Instrument Serif', serif;
+    font-size: 2.2rem; font-weight: 400; color: var(--green);
+    letter-spacing: -.02em; margin-top: 2px;
+  }
+  .section-sep { height: 1px; background: var(--cream2); margin: 0; }
+  .algo-panel { display: none; }
+  .algo-panel.active { display: contents; }
+  .fade-in { animation: fadeIn .3s ease both; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  @keyframes highlight { 0%{transform:scale(1)} 50%{transform:scale(1.1)} 100%{transform:scale(1)} }
+  @keyframes slideIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+  .running .status-dot { animation: pulse .7s ease-in-out infinite; background: var(--amber); }
+  
+  /* Enhanced visual feedback */
+  .node-highlight { animation: highlight 0.6s ease-in-out; }
+  .edge-highlight { animation: pulse 1s ease-in-out 2; }
+
+  /* ══════════════════════════════════════════
+     MODAL — EDITOR DE GRAFO
+  ══════════════════════════════════════════ */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(44,37,32,.45);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity .25s ease;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+
+  .modal {
+    background: #fff;
+    border-radius: 22px;
+    border: 1px solid var(--sand);
+    width: min(680px, 94vw);
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 60px rgba(44,37,32,.18);
+    transform: translateY(12px) scale(.98);
+    transition: transform .25s ease;
+  }
+  .modal-overlay.open .modal { transform: none; }
+
+  .modal-header {
+    padding: 22px 26px 18px;
+    border-bottom: 1px solid var(--cream2);
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    position: sticky; top: 0; background: #fff; z-index: 2;
+    border-radius: 22px 22px 0 0;
+  }
+  .modal-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.4rem; font-weight: 400; color: var(--ink);
+  }
+  .modal-subtitle { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .close-btn {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1.5px solid var(--sand); background: var(--cream2);
+    cursor: pointer; font-size: 16px; color: var(--muted);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all .15s;
+  }
+  .close-btn:hover { background: var(--rose-l); border-color: var(--rose); color: var(--rose); }
+
+  .modal-body { padding: 22px 26px; display: flex; flex-direction: column; gap: 24px; }
+
+  /* Presets */
+  .preset-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .preset-btn {
+    padding: 7px 15px; border-radius: 100px;
+    border: 1.5px solid var(--sand); background: var(--cream2);
+    font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500;
+    color: var(--ink2); cursor: pointer; transition: all .15s;
+  }
+  .preset-btn:hover { border-color: var(--blue-m); color: var(--blue); background: var(--blue-l); }
+
+  /* Section label inside modal */
+  .modal-section-label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--muted); margin-bottom: 10px;
+  }
+
+  /* Nodes editor */
+  .nodes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .node-row {
+    background: var(--cream2); border-radius: var(--r-sm);
+    padding: 10px 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .node-num { font-size: 10px; color: var(--muted); font-family: 'DM Mono',monospace; flex-shrink:0; }
+  .node-row input {
+    flex: 1; min-width: 0;
+    border: 1.5px solid var(--sand); border-radius: 8px;
+    padding: 5px 8px; font-family: 'DM Sans',sans-serif; font-size: 12px;
+    background: #fff; color: var(--ink); outline: none; transition: border-color .15s;
+  }
+  .node-row input:focus { border-color: var(--blue-m); }
+
+  /* Edges editor */
+  .edges-list { display: flex; flex-direction: column; gap: 8px; }
+  .edge-row {
+    display: grid; grid-template-columns: 1fr auto 1fr auto 80px auto;
+    align-items: center; gap: 8px;
+    background: var(--cream2); border-radius: var(--r-sm); padding: 8px 12px;
+  }
+  .edge-arrow { color: var(--muted); font-size: 14px; text-align: center; }
+  .edge-row input, .edge-row select {
+    border: 1.5px solid var(--sand); border-radius: 8px;
+    padding: 5px 8px; font-family: 'DM Sans',sans-serif; font-size: 12px;
+    background: #fff; color: var(--ink); outline: none; transition: border-color .15s;
+    width: 100%;
+  }
+  .edge-row input:focus, .edge-row select:focus { border-color: var(--blue-m); }
+  .edge-row input[type=number] { text-align: right; }
+  .del-btn {
+    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+    border: 1.5px solid transparent; background: transparent;
+    color: var(--muted); cursor: pointer; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+  }
+  .del-btn:hover { background: var(--rose-l); color: var(--rose); border-color: var(--rose); }
+  .add-edge-btn {
+    padding: 8px 16px; border-radius: 100px;
+    border: 1.5px dashed var(--sand); background: transparent;
+    font-family: 'DM Sans',sans-serif; font-size: 12px; font-weight: 500;
+    color: var(--muted); cursor: pointer; transition: all .15s; margin-top: 4px;
+    text-align: center;
+  }
+  .add-edge-btn:hover { border-color: var(--green-m); color: var(--green); background: var(--green-l); }
+
+  /* Unit label */
+  .unit-row { display: flex; align-items: center; gap: 10px; }
+  .unit-row label { font-size: 12px; color: var(--ink2); white-space: nowrap; }
+  .unit-row input {
+    border: 1.5px solid var(--sand); border-radius: 8px;
+    padding: 6px 10px; font-family: 'DM Sans',sans-serif; font-size: 12px;
+    background: #fff; color: var(--ink); outline: none; width: 100px;
+    transition: border-color .15s;
+  }
+  .unit-row input:focus { border-color: var(--blue-m); }
+
+  /* Error toast */
+  .error-msg {
+    font-size: 12px; color: var(--rose); padding: 8px 12px;
+    background: var(--rose-l); border-radius: 8px; border: 1px solid #f5c5be;
+    display: none;
+  }
+  .error-msg.show { display: block; }
+
+  /* Modal footer */
+  .modal-footer {
+    padding: 18px 26px;
+    border-top: 1px solid var(--cream2);
+    display: flex; gap: 10px; justify-content: flex-end;
+    position: sticky; bottom: 0; background: #fff; z-index: 2;
+    border-radius: 0 0 22px 22px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Algoritmos de Dijkstra <em>&</em> Kruskal</h1>
+  <p class="subtitle">Carlos G. Pérez C. y Nathalia E. Féliz M.</p>
+</header>
+
+<div class="tabs-row">
+  <button class="tab-btn active" onclick="switchAlgo('dijkstra',this)">Dijkstra — Camino mínimo</button>
+  <button class="tab-btn" onclick="switchAlgo('kruskal',this)">Kruskal — Árbol de expansión mínima</button>
+</div>
+
+<div class="main">
+  <!-- LEFT: Canvas -->
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" id="canvas-label">Red de Routers</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div id="src-wrap" style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:12px;color:var(--muted)">Desde</span>
+            <select id="src-sel" onchange="onSrcChange()"></select>
+          </div>
+          <span class="algo-badge" id="algo-badge">Dijkstra</span>
+        </div>
+      </div>
+      <div id="canvas-wrap">
+        <canvas id="cv"></canvas>
+      </div>
+      <div class="status-bar" id="status-bar">
+        <div class="status-dot" id="status-dot"></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+          <span id="status-msg">Selecciona el nodo fuente y presiona <strong>Siguiente paso</strong></span>
+          <span id="status-detail" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace"></span>
+        </div>
+      </div>
+      <div class="controls-bar">
+        <button class="btn primary" onclick="doStep()">Siguiente paso</button>
+        <button class="btn accent" onclick="doAutoRun()">▶ Auto</button>
+        <button class="btn" onclick="doReset()">Reiniciar</button>
+        <button class="btn edit-btn" onclick="openEditor()">Editar grafo</button>
+        <div class="speed-wrap">
+          <label>Velocidad</label>
+          <input type="range" id="speed" min="1" max="5" value="3" step="1">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Info panel -->
+  <div class="panel-right">
+    <div class="card algo-panel active" id="panel-dist">
+      <div class="card-header">
+        <span class="card-title">Distancias</span>
+        <span style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">dist[]</span>
+      </div>
+      <div style="padding:12px 0">
+        <table class="dist-table">
+          <thead><tr><th>Nodo</th><th style="text-align:right">Dist · Vía</th></tr></thead>
+          <tbody id="dist-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card algo-panel" id="panel-kruskal-info">
+      <div class="card-header">
+        <span class="card-title">MST — Costo total</span>
+        <span class="algo-badge green">Kruskal</span>
+      </div>
+      <div class="cost-display">
+        <div class="cost-label">Costo total</div>
+        <div class="cost-value" id="mst-cost">—</div>
+      </div>
+      <div class="section-sep"></div>
+      <div style="padding:12px 16px">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px">Aristas del MST</div>
+        <div id="mst-edges" style="font-size:12px;font-family:'DM Mono',monospace;color:var(--ink2);line-height:2">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Leyenda</span></div>
+      <div class="legend" id="legend-d">
+        <div class="leg-item"><div class="leg-circle" style="background:var(--blue-l);border-color:var(--blue-m)"></div> No visitado</div>
+        <div class="leg-item"><div class="leg-circle" style="background:var(--amber-l);border:3px solid var(--amber-m)"></div> Nodo actual</div>
+        <div class="leg-item"><div class="leg-circle" style="background:var(--green-l);border:3px solid var(--green-m)"></div> Visitado</div>
+        <div class="leg-item"><div class="leg-circle" style="background:var(--rose-l);border:2px solid var(--rose)"></div> Nodo destino</div>
+        <div class="leg-item"><div class="leg-line" style="background:var(--green)"></div> Camino mínimo</div>
+        <div class="leg-item"><div class="leg-line" style="background:var(--sand)"></div> Conexión normal</div>
+      </div>
+      <div class="legend" id="legend-k" style="display:none">
+        <div class="leg-item"><div class="leg-circle" style="background:var(--blue-l);border-color:var(--blue-m)"></div> Nodo</div>
+        <div class="leg-item"><div class="leg-line" style="background:var(--green)"></div> Arista aceptada</div>
+        <div class="leg-item"><div class="leg-line dashed" style="border-color:var(--rose)"></div> Rechazada (ciclo)</div>
+        <div class="leg-item"><div class="leg-line" style="background:var(--amber)"></div> Evaluando</div>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1">
+      <div class="card-header">
+        <span class="card-title">Log de ejecución</span>
+        <button class="btn" style="padding:4px 12px;font-size:11px" onclick="clearLog()">Limpiar</button>
+      </div>
+      <div class="log-wrap" id="log-wrap">
+        <div class="log-entry head">— Esperando inicio —</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MODAL — EDITOR DE GRAFO
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-overlay" onclick="handleOverlayClick(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modal-title">Editar grafo — Dijkstra</div>
+        <div class="modal-subtitle" id="modal-subtitle">Modifica los nodos y aristas, luego aplica los cambios.</div>
+      </div>
+      <button class="close-btn" onclick="closeEditor()">✕</button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- Presets -->
+      <div>
+        <div class="modal-section-label">Cargar ejemplo predefinido</div>
+        <div class="preset-row" id="preset-row"></div>
+      </div>
+
+      <!-- Nodos -->
+      <div>
+        <div class="modal-section-label">Nodos <span style="font-weight:400;color:var(--muted)">(etiqueta y descripción opcional)</span></div>
+        <div class="nodes-grid" id="editor-nodes"></div>
+      </div>
+
+      <!-- Aristas -->
+      <div>
+        <div class="modal-section-label">Aristas</div>
+        <div class="edges-list" id="editor-edges"></div>
+        <button class="add-edge-btn" onclick="addEdgeRow()">+ Agregar arista</button>
+      </div>
+
+      <!-- Unidad -->
+      <div>
+        <div class="modal-section-label">Unidad de peso</div>
+        <div class="unit-row">
+          <label>Mostrar como:</label>
+          <input type="text" id="unit-input" placeholder="ej: km, ms, €, saltos" maxlength="10">
+          <span style="font-size:12px;color:var(--muted)">Se muestra en resultados de Kruskal</span>
+        </div>
+      </div>
+
+      <!-- Nombre del grafo -->
+      <div>
+        <div class="modal-section-label">Nombre del grafo</div>
+        <div class="unit-row">
+          <input type="text" id="graph-name-input" placeholder="ej: Red de routers del campus" maxlength="50" style="width:100%">
+        </div>
+      </div>
+
+      <div class="error-msg" id="editor-error"></div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="closeEditor()">Cancelar</button>
+      <button class="btn primary" onclick="applyEditor()">Aplicar cambios</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════
+   PRESETS
+══════════════════════════════════════════════ */
+const PRESETS = {
+  dijkstra: [
+    {
+      name: 'Red de routers',
+      graphName: 'Red de Routers',
+      unit: 'ms',
+      nodes: [
+        {label:'R0', sub:'Origen'},
+        {label:'R1', sub:''},
+        {label:'R2', sub:''},
+        {label:'R3', sub:''},
+        {label:'R4', sub:'Destino'},
+      ],
+      edges: [{u:0,v:1,w:4},{u:0,v:2,w:2},{u:1,v:2,w:3},{u:1,v:3,w:5},{u:2,v:4,w:8},{u:3,v:4,w:2}],
+    },
+    {
+      name: 'Mapa de ciudades',
+      graphName: 'Rutas entre ciudades',
+      unit: 'km',
+      nodes: [
+        {label:'A', sub:'Ciudad A'},
+        {label:'B', sub:'Ciudad B'},
+        {label:'C', sub:'Ciudad C'},
+        {label:'D', sub:'Ciudad D'},
+        {label:'E', sub:'Ciudad E'},
+        {label:'F', sub:'Ciudad F'},
+      ],
+      edges: [{u:0,v:1,w:7},{u:0,v:2,w:9},{u:0,v:5,w:14},{u:1,v:2,w:10},{u:1,v:3,w:15},{u:2,v:3,w:11},{u:2,v:5,w:2},{u:3,v:4,w:6},{u:4,v:5,w:9}],
+    },
+    {
+      name: 'Sistema de tuberías',
+      graphName: 'Red de tuberías',
+      unit: 'm',
+      nodes: [
+        {label:'S', sub:'Bomba principal'},
+        {label:'V1', sub:'Válvula 1'},
+        {label:'V2', sub:'Válvula 2'},
+        {label:'V3', sub:'Válvula 3'},
+        {label:'T', sub:'Tanque'},
+      ],
+      edges: [{u:0,v:1,w:3},{u:0,v:2,w:6},{u:1,v:2,w:2},{u:1,v:3,w:5},{u:2,v:3,w:3},{u:3,v:4,w:1},{u:2,v:4,w:7}],
+    },
+    {
+      name: 'GPS — 4 nodos',
+      graphName: 'Navegación GPS',
+      unit: 'km',
+      nodes: [
+        {label:'Casa', sub:'Origen'},
+        {label:'Mall', sub:''},
+        {label:'Parque', sub:''},
+        {label:'Oficina', sub:'Destino'},
+      ],
+      edges: [{u:0,v:1,w:5},{u:0,v:2,w:8},{u:1,v:2,w:2},{u:1,v:3,w:6},{u:2,v:3,w:3}],
+    },
+  ],
+  kruskal: [
+    {
+      name: 'Campus universitario',
+      graphName: 'Fibra Óptica — Campus',
+      unit: 'km',
+      nodes: [
+        {label:'Recto.', sub:'Rectorado'},
+        {label:'Biblio.', sub:'Biblioteca'},
+        {label:'Ing.', sub:'Ingeniería'},
+        {label:'Ciencias', sub:''},
+        {label:'Deporte', sub:'Deportes'},
+        {label:'Resid.', sub:'Residencia'},
+      ],
+      edges: [{u:0,v:1,w:4},{u:0,v:2,w:3},{u:1,v:3,w:2},{u:1,v:2,w:1},{u:2,v:3,w:4},{u:2,v:4,w:5},{u:3,v:5,w:7},{u:4,v:5,w:2},{u:3,v:4,w:6}],
+    },
+    {
+      name: 'Red eléctrica',
+      graphName: 'Tendido eléctrico',
+      unit: 'km',
+      nodes: [
+        {label:'P1', sub:'Planta'},
+        {label:'Sub1', sub:'Subestación'},
+        {label:'Sub2', sub:'Subestación'},
+        {label:'B1', sub:'Barrio 1'},
+        {label:'B2', sub:'Barrio 2'},
+        {label:'B3', sub:'Barrio 3'},
+        {label:'B4', sub:'Barrio 4'},
+      ],
+      edges: [{u:0,v:1,w:3},{u:0,v:2,w:5},{u:1,v:2,w:2},{u:1,v:3,w:4},{u:1,v:4,w:7},{u:2,v:4,w:3},{u:2,v:5,w:6},{u:3,v:4,w:1},{u:4,v:5,w:5},{u:4,v:6,w:4},{u:5,v:6,w:2}],
+    },
+    {
+      name: 'Carreteras — 5 nodos',
+      graphName: 'Red de carreteras',
+      unit: 'km',
+      nodes: [
+        {label:'A', sub:''},
+        {label:'B', sub:''},
+        {label:'C', sub:''},
+        {label:'D', sub:''},
+        {label:'E', sub:''},
+      ],
+      edges: [{u:0,v:1,w:2},{u:0,v:3,w:6},{u:1,v:2,w:3},{u:1,v:3,w:8},{u:1,v:4,w:5},{u:2,v:4,w:7},{u:3,v:4,w:9}],
+    },
+    {
+      name: 'Redes LAN',
+      graphName: 'Interconexión de LANs',
+      unit: 'Mbps',
+      nodes: [
+        {label:'Core', sub:'Switch principal'},
+        {label:'LAN-A', sub:'Planta 1'},
+        {label:'LAN-B', sub:'Planta 2'},
+        {label:'LAN-C', sub:'Planta 3'},
+        {label:'LAN-D', sub:'Almacén'},
+      ],
+      edges: [{u:0,v:1,w:1},{u:0,v:2,w:3},{u:0,v:3,w:4},{u:1,v:2,w:2},{u:2,v:3,w:5},{u:1,v:4,w:6},{u:3,v:4,w:3}],
+    },
+  ],
+};
+
+/* ══════════════════════════════════════════════
+   DATA (activa)
+══════════════════════════════════════════════ */
+const INF = 999999;
+
+let currentUnit = { dijkstra: 'ms', kruskal: 'km' };
+let currentGraphName = { dijkstra: 'Red de Routers', kruskal: 'Fibra Óptica — Campus' };
+
+// Clone from presets as initial data
+let DN = PRESETS.dijkstra[0].nodes.map((n,i)=>({id:i,...n}));
+let DE = PRESETS.dijkstra[0].edges.map(e=>({...e}));
+let KN = PRESETS.kruskal[0].nodes.map((n,i)=>({id:i,...n}));
+let KE_RAW = PRESETS.kruskal[0].edges.map(e=>({...e}));
+let KE = [...KE_RAW].sort((a,b)=>a.w-b.w);
+
+/* ══════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════ */
+let algo = 'dijkstra';
+let autoTimer = null;
+let DS = null;
+let KS = null;
+
+function resetDState(src=0) {
+  const n = DN.length;
+  DS = {
+    src, step:0, done:false,
+    dist: Array(n).fill(INF),
+    prev: Array(n).fill(-1),
+    visited: Array(n).fill(false),
+    current: -1,
+    pathEdges: [],
+  };
+  DS.dist[src] = 0;
+}
+
+function resetKState() {
+  KS = {
+    step:0, done:false, idx:0,
+    mst:[], rejected:[], candidate:-1, cost:0,
+    parent: Array.from({length:KN.length},(_,i)=>i),
+    rank: Array(KN.length).fill(0),
+  };
+}
+
+/* ══════════════════════════════════════════════
+   DIJKSTRA
+══════════════════════════════════════════════ */
+function minDist() {
+  let mi=-1,mv=INF;
+  for(let i=0;i<DN.length;i++) if(!DS.visited[i]&&DS.dist[i]<mv){mv=DS.dist[i];mi=i;}
+  return mi;
+}
+function buildPath(dest) {
+  const edges=[];
+  let v=dest;
+  while(DS.prev[v]!==-1){edges.push({u:DS.prev[v],v});v=DS.prev[v];}
+  return edges;
+}
+function stepDijkstra() {
+  if(DS.done) return false;
+  const u = minDist();
+  if(u===-1){DS.done=true;return false;}
+  DS.visited[u]=true; DS.current=u; DS.step++;
+  addLog('head',`Iter ${DS.step}: Procesando ${DN[u].label} (dist=${DS.dist[u]})`);
+  let updated=false;
+  for(const e of DE) {
+    let v=-1;
+    if(e.u===u) v=e.v; else if(e.v===u) v=e.u;
+    if(v===-1||DS.visited[v]) continue;
+    const nd=DS.dist[u]+e.w;
+    if(nd<DS.dist[v]) {
+      DS.dist[v]=nd; DS.prev[v]=u; updated=true;
+      addLog('update',`  → ${DN[v].label}: ${DS.dist[v]===INF?'∞':DS.dist[v]} → ${nd} (vía ${DN[u].label})`);
+    }
+  }
+  if(!updated) addLog('','  Sin actualizaciones.');
+  if(DN.every(n=>DS.visited[n.id])) {
+    DS.done=true;
+    DS.pathEdges = buildPath(DN.length-1);
+    addLog('accept','¡Completado! Todas las distancias calculadas.');
+    setStatus('done','¡Algoritmo completado!', `Paso ${DS.step} - Todos los nodos visitados`);
+  } else {
+    const rem=DN.filter(n=>!DS.visited[n.id]).map(n=>`${n.label}:${DS.dist[n.id]===INF?'INF':DS.dist[n.id]}`).join(' · ');
+    setStatus('active',`Paso ${DS.step} - Procesando nodo ${DN[u].label}`, `Pendientes: ${rem}`);
+  }
+  updateDistTable();
+  return true;
+}
+
+/* ══════════════════════════════════════════════
+   KRUSKAL
+══════════════════════════════════════════════ */
+function findK(x){ if(KS.parent[x]!==x)KS.parent[x]=findK(KS.parent[x]); return KS.parent[x]; }
+function unionK(x,y){ const rx=findK(x),ry=findK(y); if(rx===ry)return false; if(KS.rank[rx]<KS.rank[ry])KS.parent[rx]=ry; else if(KS.rank[rx]>KS.rank[ry])KS.parent[ry]=rx; else{KS.parent[ry]=rx;KS.rank[rx]++;} return true; }
+function stepKruskal() {
+  if(KS.done||KS.idx>=KE.length) { KS.done=true; return false; }
+  const e=KE[KS.idx++]; KS.step++; KS.candidate=KS.idx-1;
+  const accept=unionK(e.u,e.v);
+  const unit = currentUnit.kruskal;
+  if(accept){
+    KS.mst.push(e); KS.cost+=e.w;
+    addLog('accept',`  ${KN[e.u].label} - ${KN[e.v].label} (${e.w} ${unit}) ACEPTADA`);
+    setStatus('active',`Arista ${KS.step}: aceptada`, `MST: ${KS.mst.length}/${KN.length-1} aristas, Costo: ${KS.cost} ${unit}`);
+  } else {
+    KS.rejected.push(e);
+    addLog('reject',`  ${KN[e.u].label} - ${KN[e.v].label} (${e.w} ${unit}) RECHAZADA (forma ciclo)`);
+    setStatus('active',`Arista ${KS.step}: rechazada`, `Ciclo detectado, MST: ${KS.mst.length}/${KN.length-1} aristas`);
+  }
+  if(KS.mst.length===KN.length-1){
+    KS.done=true;
+    addLog('accept',`¡MST completo! Costo total: ${KS.cost} ${unit}`);
+    setStatus('done','¡MST completo!', `Costo mínimo: ${KS.cost} ${unit}, ${KS.mst.length} aristas`);
+  }
+  updateKruskalPanel();
+  return true;
+}
+
+/* ══════════════════════════════════════════════
+   DRAW
+══════════════════════════════════════════════ */
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W, H, dpr;
+
+function resize() {
+  dpr = window.devicePixelRatio||1;
+  const rect = cv.parentElement.getBoundingClientRect();
+  W = rect.width; H = 420;
+  cv.width=W*dpr; cv.height=H*dpr;
+  cv.style.width=W+'px'; cv.style.height=H+'px';
+  ctx.scale(dpr,dpr);
+  draw();
+}
+
+function pos(n) { return {x:n.x*W, y:n.y*H}; }
+
+const C = {
+  nodeDefault:'#EDF4FD', nodeStroke:'#8ab8ef',
+  nodeVisited:'#D4F0E4', nodeVisitedStroke:'#7dcbaa',
+  nodeCurrent:'#FDECD0', nodeCurrentStroke:'#f0bc72',
+  nodeDest:'#FDE4DF', nodeDestStroke:'#d45a4a',
+  edgeNormal:'#d9d3cb', edgeMST:'#2d9e6b',
+  edgeRej:'#d45a4a', edgeCand:'#d4891a',
+  pathEdge:'#2d9e6b', label:'#2c2520', sub:'#a89e90', weight:'#a89e90',
+};
+
+function draw() {
+  ctx.clearRect(0,0,W,H);
+  if(algo==='dijkstra') drawDijkstra();
+  else drawKruskal();
+}
+
+function layoutNodes(nodes) {
+  const n = nodes.length;
+  if(n===0) return;
+  // Compute positions automatically if not set
+  if(nodes[0].x===undefined) {
+    const cx=0.5, cy=0.5, r=0.35;
+    nodes.forEach((nd,i)=>{
+      const a = (i/n)*Math.PI*2 - Math.PI/2;
+      nd.x = cx + r*Math.cos(a);
+      nd.y = cy + r*Math.sin(a);
+    });
+  }
+}
+
+function drawDijkstra() {
+  const s=DS;
+  for(const e of DE) {
+    const p=pos(DN[e.u]), q=pos(DN[e.v]);
+    const inPath=s&&s.pathEdges.some(pe=>(pe.u===e.u&&pe.v===e.v)||(pe.u===e.v&&pe.v===e.u));
+    drawEdge(p,q,inPath?C.pathEdge:C.edgeNormal,inPath?2.5:.9,false,e.w);
+  }
+  for(const n of DN) {
+    const {x,y}=pos(n);
+    let fill=C.nodeDefault, stroke=C.nodeStroke, sw=1.5;
+    if(s){
+      if(s.visited[n.id]&&n.id!==s.current){fill=C.nodeVisited;stroke=C.nodeVisitedStroke;sw=2;}
+      if(n.id===s.current){fill=C.nodeCurrent;stroke=C.nodeCurrentStroke;sw=2.5;}
+      if(n.id===DN.length-1){fill=C.nodeDest;stroke=C.nodeDestStroke;}
+    }
+    drawNode(x,y,n.label,n.sub,fill,stroke,sw,s?DS.dist[n.id]:null);
+  }
+}
+
+function drawKruskal() {
+  const s=KS;
+  for(const e of KE_RAW) {
+    if(!s){drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeNormal,.9,false,e.w);continue;}
+    const inMST=s.mst.some(m=>m.u===e.u&&m.v===e.v);
+    const inRej=s.rejected.some(r=>r.u===e.u&&r.v===e.v);
+    const isCand=!KS.done&&s.idx>0&&KE[s.idx-1]&&KE[s.idx-1].u===e.u&&KE[s.idx-1].v===e.v;
+    if(inRej) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeRej,1.2,true,e.w);
+    else if(inMST) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeMST,2.5,false,e.w);
+    else if(isCand) drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeCand,2,false,e.w);
+    else drawEdge(pos(KN[e.u]),pos(KN[e.v]),C.edgeNormal,.9,false,e.w);
+  }
+  for(const n of KN) {
+    const {x,y}=pos(n);
+    drawNode(x,y,n.label,n.sub,C.nodeDefault,C.nodeStroke,1.5,null);
+  }
+}
+
+function drawEdge(p,q,color,lw,dashed,weight) {
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y);
+  ctx.strokeStyle=color; ctx.lineWidth=lw;
+  if(dashed) ctx.setLineDash([8,6]); else ctx.setLineDash([]);
+  
+  // Agregar efecto de sombra para aristas importantes
+  if(lw > 2) {
+    ctx.shadowColor='rgba(44,37,32,.15)'; 
+    ctx.shadowBlur=4; 
+    ctx.shadowOffsetY=2;
+  }
+  
+  ctx.stroke(); ctx.restore();
+  
+  // Mejorar visualización del peso
+  const mx=(p.x+q.x)/2, my=(p.y+q.y)/2;
+  const bx=28, by=18;
+  
+  // Fondo con mejor contraste
+  ctx.fillStyle='rgba(255,255,255,.95)';
+  ctx.strokeStyle=color; ctx.lineWidth=1.5;
+  ctx.beginPath(); roundRect(ctx,mx-bx/2,my-by/2-1,bx,by,6); ctx.fill(); ctx.stroke();
+  
+  // Color del texto según el estado de la arista
+  if(color === C.edgeMST) {
+    ctx.fillStyle='#2d9e6b'; // Verde para MST
+  } else if(color === C.edgeRej) {
+    ctx.fillStyle='#d45a4a'; // Rojo para rechazadas
+  } else if(color === C.edgeCand) {
+    ctx.fillStyle='#d4891a'; // Ámbar para candidatas
+  } else {
+    ctx.fillStyle=C.weight; // Color normal
+  }
+  
+  ctx.font=`600 12px 'DM Mono',monospace`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(weight,mx,my);
+}
+
+function drawNode(x,y,label,sub,fill,stroke,sw,dist) {
+  const R=30;
+  ctx.save();
+  ctx.shadowColor='rgba(44,37,32,.08)'; ctx.shadowBlur=12; ctx.shadowOffsetY=3;
+  ctx.beginPath(); ctx.arc(x,y,R,0,Math.PI*2);
+  ctx.fillStyle=fill; ctx.fill(); ctx.restore();
+  ctx.beginPath(); ctx.arc(x,y,R,0,Math.PI*2);
+  ctx.strokeStyle=stroke; ctx.lineWidth=sw; ctx.stroke();
+  ctx.fillStyle=C.label;
+  ctx.font=`600 13px 'DM Sans',sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(label,x,y);
+  if(dist!==null) {
+    const txt=dist===INF?'INF':String(dist);
+    const bw=Math.max(28,txt.length*9+12), bh=18;
+    // Fondo con mejor contraste según el estado
+    if(dist===0) {
+      ctx.fillStyle='#2d9e6b'; // Verde para nodo fuente
+    } else if(dist===INF) {
+      ctx.fillStyle='#a89e90'; // Gris para infinito
+    } else {
+      ctx.fillStyle='#3b7dd8'; // Azul para distancias calculadas
+    }
+    ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+    ctx.beginPath(); roundRect(ctx,x-bw/2,y+R-4,bw,bh,8); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#fff';
+    ctx.font=`600 11px 'DM Mono',monospace`;
+    ctx.textBaseline='middle'; ctx.fillText(txt,x,y+R+5);
+  }
+  if(sub) {
+    ctx.fillStyle=C.sub; ctx.font=`400 10px 'DM Sans',sans-serif`;
+    ctx.textBaseline='top'; ctx.fillText(sub,x,y+R+(dist!==null?24:8));
+  }
+}
+
+function roundRect(ctx,x,y,w,h,r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.arcTo(x+w,y,x+w,y+r,r); ctx.lineTo(x+w,y+h-r);
+  ctx.arcTo(x+w,y+h,x+w-r,y+h,r); ctx.lineTo(x+r,y+h);
+  ctx.arcTo(x,y+h,x,y+h-r,r); ctx.lineTo(x,y+r);
+  ctx.arcTo(x,y,x+r,y,r); ctx.closePath();
+}
+
+/* ══════════════════════════════════════════════
+   UI HELPERS
+══════════════════════════════════════════════ */
+function setStatus(state, msg, detail = '') {
+  document.getElementById('status-dot').className='status-dot '+state;
+  document.getElementById('status-msg').innerHTML=msg;
+  document.getElementById('status-detail').textContent=detail;
+}
+function addLog(cls, msg) {
+  const wrap=document.getElementById('log-wrap');
+  const div=document.createElement('div');
+  div.className='log-entry '+cls;
+  div.textContent=msg;
+  wrap.appendChild(div);
+  wrap.scrollTop=wrap.scrollHeight;
+}
+function clearLog() {
+  document.getElementById('log-wrap').innerHTML='<div class="log-entry head">— Log limpiado —</div>';
+}
+function updateDistTable() {
+  const tbody=document.getElementById('dist-tbody');
+  tbody.innerHTML='';
+  for(const n of DN) {
+    const tr=document.createElement('tr');
+    const visited=DS.visited[n.id], current=DS.current===n.id;
+    tr.className=current?'current':visited?'visited':'';
+    const d=DS.dist[n.id];
+    const via=DS.prev[n.id]!==-1?` · ${DN[DS.prev[n.id]].label}`:'';
+    tr.innerHTML=`<td><span class="node-chip">${n.label}${n.sub?` <span style="color:var(--muted);font-weight:400;font-size:11px">${n.sub}</span>`:''}</span></td><td>${d===INF?'∞':d}${via}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+function updateKruskalPanel() {
+  const unit=currentUnit.kruskal;
+  const val = KS.done||KS.cost>0 ? `${KS.cost} ${unit}` : `—`;
+  document.getElementById('mst-cost').textContent=val;
+  const el=document.getElementById('mst-edges');
+  if(KS.mst.length===0){el.textContent='—';return;}
+  el.innerHTML=KS.mst.map(e=>`<div>${KN[e.u].label} — ${KN[e.v].label} <span style="color:var(--green)">${e.w} ${unit}</span></div>`).join('');
+}
+function initDistTable() {
+  const tbody=document.getElementById('dist-tbody');
+  tbody.innerHTML=DN.map(n=>`<tr><td>${n.label}${n.sub?` <span style="color:var(--muted);font-size:11px">${n.sub}</span>`:''}</td><td>—</td></tr>`).join('');
+}
+function buildSrcSelect() {
+  const sel=document.getElementById('src-sel');
+  sel.innerHTML=DN.map((n,i)=>`<option value="${i}">${n.label}</option>`).join('');
+}
+
+/* ══════════════════════════════════════════════
+   ACTIONS
+══════════════════════════════════════════════ */
+function doStep() {
+  if(!autoTimer) stopAuto();
+  if(algo==='dijkstra') {
+    if(!DS){resetDState(+document.getElementById('src-sel').value);initDistTable();setStatus('active','Iniciando Dijkstra...');}
+    if(!stepDijkstra()) setStatus('done','¡Completado!');
+  } else {
+    if(!KS){resetKState();addLog('head',`Aristas ordenadas: ${KE.map(e=>`${KN[e.u].label}-${KN[e.v].label}(${e.w})`).join(', ')}`);setStatus('active','Iniciando Kruskal...');}
+    if(!stepKruskal()) setStatus('done','¡Completado!');
+  }
+  draw();
+}
+function doReset() {
+  stopAuto();
+  if(algo==='dijkstra') {
+    DS=null; resetDState(+document.getElementById('src-sel').value);
+    initDistTable();
+    setStatus('','Selecciona el nodo fuente y presiona <strong>Siguiente paso</strong>');
+  } else {
+    KS=null;
+    document.getElementById('mst-cost').textContent='—';
+    document.getElementById('mst-edges').textContent='—';
+    setStatus('','Presiona <strong>Siguiente paso</strong> para iniciar Kruskal');
+  }
+  clearLog(); draw();
+}
+function doAutoRun() {
+  if(autoTimer){stopAuto();return;}
+  const speeds=[800,500,300,180,80];
+  const sp=speeds[+document.getElementById('speed').value-1];
+  document.getElementById('status-bar').classList.add('running');
+  console.log(sp);
+  autoTimer=setInterval(()=>{
+    console.log('Interval');
+    doStep();
+    const done=(algo==='dijkstra'&&DS&&DS.done)||(algo==='kruskal'&&KS&&KS.done);
+    if(done) stopAuto();
+  },sp);
+}
+function stopAuto() {
+  if(autoTimer){clearInterval(autoTimer);autoTimer=null;}
+  document.getElementById('status-bar').classList.remove('running');
+}
+function onSrcChange() {
+  stopAuto(); DS=null;
+  resetDState(+document.getElementById('src-sel').value);
+  initDistTable(); clearLog(); draw();
+  setStatus('','Nodo fuente cambiado. Presiona <strong>Siguiente paso</strong>');
+}
+function switchAlgo(name, btn) {
+  stopAuto(); algo=name;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-dist').classList.toggle('active', name==='dijkstra');
+  document.getElementById('panel-kruskal-info').classList.toggle('active', name==='kruskal');
+  document.getElementById('src-wrap').style.display=name==='dijkstra'?'flex':'none';
+  document.getElementById('algo-badge').textContent=name==='dijkstra'?'Dijkstra':'Kruskal';
+  document.getElementById('algo-badge').className='algo-badge'+(name==='kruskal'?' green':'');
+  document.getElementById('legend-d').style.display=name==='dijkstra'?'flex':'none';
+  document.getElementById('legend-k').style.display=name==='kruskal'?'flex':'none';
+  document.getElementById('canvas-label').textContent=currentGraphName[name];
+  clearLog();
+  if(name==='dijkstra'){
+    DS=null; resetDState(0); initDistTable();
+    setStatus('','Selecciona el nodo fuente y presiona <strong>Siguiente paso</strong>');
+  } else {
+    KS=null;
+    document.getElementById('mst-cost').textContent='—';
+    document.getElementById('mst-edges').textContent='—';
+    setStatus('','Presiona <strong>Siguiente paso</strong> para iniciar Kruskal');
+  }
+  draw();
+}
+
+/* ══════════════════════════════════════════════
+   LAYOUT HELPERS
+══════════════════════════════════════════════ */
+
+// Assign positions to nodes in a nice layout
+function assignPositions(nodes) {
+  const n = nodes.length;
+  if(n===0) return;
+  // Try nice grid/circle layouts based on count
+  const layouts = {
+    2: [{x:.2,y:.5},{x:.8,y:.5}],
+    3: [{x:.15,y:.5},{x:.5,y:.2},{x:.5,y:.8}],
+    4: [{x:.15,y:.5},{x:.45,y:.2},{x:.45,y:.8},{x:.82,y:.5}],
+    5: [{x:.14,y:.5},{x:.40,y:.18},{x:.40,y:.82},{x:.70,y:.18},{x:.70,y:.82}],
+    6: [{x:.12,y:.5},{x:.36,y:.2},{x:.36,y:.8},{x:.62,y:.2},{x:.62,y:.8},{x:.86,y:.5}],
+    7: [{x:.1,y:.5},{x:.32,y:.2},{x:.32,y:.8},{x:.55,y:.2},{x:.55,y:.8},{x:.78,y:.3},{x:.78,y:.7}],
+    8: [{x:.1,y:.35},{x:.1,y:.65},{x:.35,y:.15},{x:.35,y:.85},{x:.65,y:.15},{x:.65,y:.85},{x:.88,y:.35},{x:.88,y:.65}],
+  };
+  const pos = layouts[n];
+  if(pos) {
+    nodes.forEach((nd,i)=>{nd.x=pos[i].x; nd.y=pos[i].y;});
+  } else {
+    // circle fallback
+    nodes.forEach((nd,i)=>{
+      const a=(i/n)*Math.PI*2-Math.PI/2;
+      nd.x=.5+.38*Math.cos(a);
+      nd.y=.5+.38*Math.sin(a);
+    });
+  }
+}
+
+/* ══════════════════════════════════════════════
+   MODAL — EDITOR
+══════════════════════════════════════════════ */
+
+let editorNodes = []; // [{label, sub}]
+let editorEdges = []; // [{u, v, w}]
+
+function openEditor() {
+  // Populate editor with current data
+  if(algo==='dijkstra') {
+    editorNodes = DN.map(n=>({label:n.label, sub:n.sub||''}));
+    editorEdges = DE.map(e=>({u:e.u, v:e.v, w:e.w}));
+    document.getElementById('modal-title').textContent = 'Editar grafo — Dijkstra';
+    document.getElementById('modal-subtitle').textContent = 'Modifica nodos y aristas del algoritmo de camino mínimo.';
+    document.getElementById('unit-input').value = currentUnit.dijkstra;
+    document.getElementById('graph-name-input').value = currentGraphName.dijkstra;
+  } else {
+    editorNodes = KN.map(n=>({label:n.label, sub:n.sub||''}));
+    editorEdges = KE_RAW.map(e=>({u:e.u, v:e.v, w:e.w}));
+    document.getElementById('modal-title').textContent = 'Editar grafo — Kruskal';
+    document.getElementById('modal-subtitle').textContent = 'Modifica nodos y aristas del árbol de expansión mínima.';
+    document.getElementById('unit-input').value = currentUnit.kruskal;
+    document.getElementById('graph-name-input').value = currentGraphName.kruskal;
+  }
+  renderPresets();
+  renderEditorNodes();
+  renderEditorEdges();
+  hideError();
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeEditor() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function handleOverlayClick(e) {
+  if(e.target===document.getElementById('modal-overlay')) closeEditor();
+}
+
+function renderPresets() {
+  const row = document.getElementById('preset-row');
+  const list = PRESETS[algo];
+  row.innerHTML = list.map((p,i)=>`<button class="preset-btn" onclick="loadPreset(${i})">${p.name}</button>`).join('');
+}
+
+function loadPreset(idx) {
+  const p = PRESETS[algo][idx];
+  editorNodes = p.nodes.map(n=>({label:n.label, sub:n.sub||''}));
+  editorEdges = p.edges.map(e=>({u:e.u, v:e.v, w:e.w}));
+  document.getElementById('unit-input').value = p.unit || (algo==='kruskal'?'km':'ms');
+  document.getElementById('graph-name-input').value = p.graphName || p.name;
+  renderEditorNodes();
+  renderEditorEdges();
+  hideError();
+}
+
+function renderEditorNodes() {
+  const container = document.getElementById('editor-nodes');
+  container.innerHTML = '';
+  editorNodes.forEach((n,i)=>{
+    const div = document.createElement('div');
+    div.className = 'node-row';
+    div.innerHTML = `
+      <span class="node-num">#${i}</span>
+      <input type="text" value="${escHtml(n.label)}" placeholder="Etiqueta" maxlength="10"
+        oninput="editorNodes[${i}].label=this.value; syncEdgeSelects()">
+      <input type="text" value="${escHtml(n.sub)}" placeholder="Descripción" maxlength="20"
+        oninput="editorNodes[${i}].sub=this.value">
+    `;
+    container.appendChild(div);
+  });
+}
+
+function renderEditorEdges() {
+  const container = document.getElementById('editor-edges');
+  container.innerHTML = '';
+  editorEdges.forEach((e,i)=>{
+    const div = document.createElement('div');
+    div.className = 'edge-row';
+    div.innerHTML = `
+      ${nodeSelect('e-u-'+i, e.u, i, 'u')}
+      <span class="edge-arrow">—</span>
+      ${nodeSelect('e-v-'+i, e.v, i, 'v')}
+      <span class="edge-arrow" style="font-size:11px;color:var(--muted)">peso</span>
+      <input type="number" id="e-w-${i}" min="1" max="9999" value="${e.w}"
+        oninput="editorEdges[${i}].w=+this.value">
+      <button class="del-btn" onclick="deleteEdge(${i})">×</button>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function nodeSelect(id, selected, edgeIdx, field) {
+  const opts = editorNodes.map((n,i)=>`<option value="${i}"${i===selected?' selected':''}>${n.label||'#'+i}</option>`).join('');
+  return `<select id="${id}" onchange="editorEdges[${edgeIdx}].${field}=+this.value">${opts}</select>`;
+}
+
+function syncEdgeSelects() {
+  // Re-render edges to reflect updated node labels in selects
+  renderEditorEdges();
+}
+
+function addEdgeRow() {
+  editorEdges.push({u:0, v:1, w:1});
+  renderEditorEdges();
+}
+
+function deleteEdge(idx) {
+  editorEdges.splice(idx,1);
+  renderEditorEdges();
+}
+
+function showError(msg) {
+  const el = document.getElementById('editor-error');
+  el.textContent = msg; el.classList.add('show');
+}
+function hideError() {
+  document.getElementById('editor-error').classList.remove('show');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function applyEditor() {
+  hideError();
+
+  // Validate
+  if(editorNodes.length < 2) { showError('Se necesitan al menos 2 nodos.'); return; }
+  if(editorEdges.length < 1) { showError('Se necesita al menos 1 arista.'); return; }
+  for(const n of editorNodes) {
+    if(!n.label.trim()) { showError('Todos los nodos deben tener una etiqueta.'); return; }
+  }
+  for(const e of editorEdges) {
+    if(e.u===e.v) { showError(`Una arista conecta un nodo consigo mismo (#${e.u}). Corrígela.`); return; }
+    if(!e.w || e.w<1) { showError('Todos los pesos deben ser al menos 1.'); return; }
+    if(e.u>=editorNodes.length||e.v>=editorNodes.length) { showError('Una arista referencia un nodo que no existe.'); return; }
+  }
+  // Kruskal: check connectivity possible (n-1 edges needed at minimum)
+  if(algo==='kruskal' && editorEdges.length < editorNodes.length-1) {
+    showError(`Para ${editorNodes.length} nodos se necesitan al menos ${editorNodes.length-1} aristas para un MST.`); return;
+  }
+
+  const unit = document.getElementById('unit-input').value.trim() || (algo==='kruskal'?'km':'ms');
+  const graphName = document.getElementById('graph-name-input').value.trim() || (algo==='dijkstra'?'Grafo Dijkstra':'Grafo Kruskal');
+
+  stopAuto();
+
+  if(algo==='dijkstra') {
+    DN = editorNodes.map((n,i)=>({id:i, label:n.label.trim(), sub:n.sub.trim(), x:0, y:0}));
+    assignPositions(DN);
+    DE = editorEdges.map(e=>({u:e.u, v:e.v, w:+e.w}));
+    currentUnit.dijkstra = unit;
+    currentGraphName.dijkstra = graphName;
+    DS = null;
+    buildSrcSelect();
+    resetDState(0);
+    initDistTable();
+    setStatus('', 'Grafo actualizado. Selecciona el nodo fuente y presiona <strong>Siguiente paso</strong>');
+  } else {
+    KN = editorNodes.map((n,i)=>({id:i, label:n.label.trim(), sub:n.sub.trim(), x:0, y:0}));
+    assignPositions(KN);
+    KE_RAW = editorEdges.map(e=>({u:e.u, v:e.v, w:+e.w}));
+    KE = [...KE_RAW].sort((a,b)=>a.w-b.w);
+    currentUnit.kruskal = unit;
+    currentGraphName.kruskal = graphName;
+    KS = null;
+    document.getElementById('mst-cost').textContent='—';
+    document.getElementById('mst-edges').textContent='—';
+    setStatus('', 'Grafo actualizado. Presiona <strong>Siguiente paso</strong> para iniciar Kruskal');
+  }
+
+  document.getElementById('canvas-label').textContent = graphName;
+  clearLog();
+  draw();
+  closeEditor();
+}
+
+/* ══════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════ */
+window.addEventListener('load', ()=>{
+  // Assign positions to initial data
+  assignPositions(DN);
+  assignPositions(KN);
+  resize();
+  buildSrcSelect();
+  resetDState(0);
+  initDistTable();
+  setStatus('', 'Selecciona el nodo fuente y presiona <strong>Siguiente paso</strong>');
+  draw();
+});
+window.addEventListener('resize', ()=>{
+  ctx.setTransform(1,0,0,1,0,0);
+  resize();
+});
+</script>
+</body>
+</html>
